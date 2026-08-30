@@ -1,0 +1,24 @@
+<!doctype html><html lang="zh-Hant-TW"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>國際都市天氣查詢</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""><link rel="stylesheet" href="style.css"></head><body><div class="shell">
+    <header class="topline">
+      <div class="brand"><div class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.96A6.5 6.5 0 0 0 5.7 9.7 4.5 4.5 0 0 0 7 18.5Z"/><path d="M8.3 5.3 7.2 3.8M12 4V2M4.7 8.2 3 7.6"/></svg></div><div><h1>國際都市天氣查詢</h1><p class="subtitle">輸入城市與日期，快速整理每日氣象資料</p></div></div>
+      <div class="network-note">需要網路連線・免輸入 API 金鑰</div>
+    </header>
+    <section class="panel search-panel" aria-label="天氣查詢條件">
+      <form id="weatherForm"><div class="form-grid">
+        <div class="city-field"><label for="city">城市名稱</label><input id="city" type="search" placeholder="例如：東京、Paris、New York" autocomplete="off" aria-autocomplete="list" aria-controls="citySuggestions" aria-expanded="false" required><div id="citySuggestions" class="autocomplete" role="listbox"></div></div>
+        <div><label for="startDate">起始日期</label><input id="startDate" type="date" required></div>
+        <div><label for="endDate">結束日期</label><input id="endDate" type="date" required></div>
+        <button class="primary" id="searchBtn" type="submit">查詢天氣</button>
+      </div><div class="helper"><span>支援繁體中文、英文與常見城市譯名自動辨識</span><span>可查今日起最多16天的預報</span></div></form>
+      <div id="status" class="status" role="status" aria-live="polite"></div>
+      <div id="locations" class="locations"><p class="locations-title">找到多個相近地點，可點選切換：</p><div id="locationList" class="location-list"></div></div>
+    </section>
+<section id="results" class="results" aria-live="polite">
+      <div class="result-head"><div><h2 id="cityName" class="city-name"></h2><p id="cityMeta" class="city-meta"></p></div><div id="updated" class="updated"></div></div>
+      <div class="share-tools"><button id="saveOptionBtn" class="memory-dot" type="button" title="記憶目前地點與日期" aria-label="記憶目前地點與日期">☆</button><button id="shareOptionBtn" class="secondary share" type="button">↗ 分享目前選項</button></div>
+      <div class="panel map-panel"><div class="map-head"><div id="mapTitle" class="map-title">城市位置</div><div class="map-note"><span class="map-help">拖曳圖標或點地圖即可查詢該處氣象</span>・OpenStreetMap</div></div><div id="cityMap" class="city-map" role="application" aria-label="可移動氣象查詢位置的地圖"></div></div>
+      <div class="panel table-panel"><div class="table-scroll"><table><thead><tr><th>日期</th><th>最高溫</th><th>最低溫</th><th>降雨機率</th><th>日出時間</th><th>日落時間</th></tr></thead><tbody id="weatherRows"></tbody></table></div></div>
+      <aside class="panel sources"><div class="sources-row"><div><h3>其他知名天氣網站交叉核對</h3><p>表格採用 Open-Meteo 的所在地最佳匹配模型；重要行程建議再查看當地官方警報與即時雷達。</p></div><div id="sourceLinks" class="source-links"></div></div></aside>
+    </section>
+    <footer>氣象資料來自 Open-Meteo，整合 ECMWF、NOAA、DWD、JMA、英國氣象局等國家級預報模型。<br>降雨機率屬模型預測，天氣快速變化時請以目的地官方氣象警報為準。</footer>
+  </div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script><script src="app.js"></script></body></html>
