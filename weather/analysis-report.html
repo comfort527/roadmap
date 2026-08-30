@@ -37,7 +37,7 @@ h1{margin:0;font-size:20px;line-height:1.35}
 </main>
 <script>
 (function(){
-  const PREFIX='weatherAnalysisReportTabV2:';
+  const PREFIX='weatherAnalysisReportTabV3:';
   const PROJECTS_KEY='internationalWeatherProjectsV2';
   const key=new URLSearchParams(location.search).get('k')||'';
   const storageKey=PREFIX+key;
@@ -46,15 +46,7 @@ h1{margin:0;font-size:20px;line-height:1.35}
   const note=document.getElementById('note');
   const backBtn=document.getElementById('backBtn');
   let data=null;
-  let projectState=null;
-  let ownProject=null;
   try{data=JSON.parse(localStorage.getItem(storageKey)||'null')}catch{}
-  try{
-    projectState=JSON.parse(localStorage.getItem(PROJECTS_KEY)||'null');
-    if(data&&projectState&&Array.isArray(projectState.projects)){
-      ownProject=projectState.projects.find(x=>x.id===data.projectId)||null;
-    }
-  }catch{}
 
   function goBack(){
     const target=data&&data.sourceUrl?data.sourceUrl:'./';
@@ -69,7 +61,7 @@ h1{margin:0;font-size:20px;line-height:1.35}
   }
 
   function save(textarea){
-    if(!data||!ownProject)return;
+    if(!data||data.editable!==true)return;
     const text=textarea.value;
     data.report=text;
     try{localStorage.setItem(storageKey,JSON.stringify(data))}catch{}
@@ -80,7 +72,6 @@ h1{margin:0;font-size:20px;line-height:1.35}
         if(p){
           p.analysisReport=text;
           localStorage.setItem(PROJECTS_KEY,JSON.stringify(state));
-          ownProject=p;
         }
       }
     }catch{}
@@ -94,11 +85,10 @@ h1{margin:0;font-size:20px;line-height:1.35}
     reportHost.appendChild(div);
   }else{
     projectName.textContent=data.projectName||'天氣專案';
-    const canEdit=!!ownProject;
-    if(canEdit){
+    if(data.editable===true){
       const textarea=document.createElement('textarea');
       textarea.className='editor';
-      textarea.value=String(ownProject.analysisReport??data.report??'');
+      textarea.value=String(data.report||'');
       textarea.placeholder='可直接在這裡輸入或貼上綜合分析報告…';
       textarea.setAttribute('aria-label','綜合分析報告編輯區');
       reportHost.appendChild(textarea);
@@ -107,7 +97,7 @@ h1{margin:0;font-size:20px;line-height:1.35}
       textarea.addEventListener('input',()=>{
         note.textContent='編輯中…';
         clearTimeout(timer);
-        timer=setTimeout(()=>{save(textarea);note.textContent='已儲存。'},350);
+        timer=setTimeout(()=>{save(textarea);note.textContent='已儲存。'},300);
       });
       textarea.addEventListener('blur',()=>{save(textarea);note.textContent='已儲存。'});
       window.addEventListener('pagehide',()=>save(textarea));
