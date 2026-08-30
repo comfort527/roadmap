@@ -1,0 +1,89 @@
+(function(){
+  const btn=document.getElementById('shareProjectBtn');
+  if(!btn)return;
+
+  function bytesToB64url(bytes){
+    let bin='';
+    for(let i=0;i<bytes.length;i++)bin+=String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  }
+  function b64urlToBytes(s){
+    s=s.replace(/-/g,'+').replace(/_/g,'/');
+    while(s.length%4)s+='=';
+    const bin=atob(s),out=new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);
+    return out;
+  }
+  async function compressText(text){
+    if(typeof CompressionStream==='undefined')throw new Error('此瀏覽器不支援網址壓縮');
+    const stream=new Blob([new TextEncoder().encode(text)]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+  async function decompressText(bytes){
+    if(typeof DecompressionStream==='undefined')throw new Error('此瀏覽器不支援網址解壓縮');
+    const stream=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return new TextDecoder().decode(await new Response(stream).arrayBuffer());
+  }
+  function compactProject(p){
+    const n=normalizeProject(p),teams={};
+    for(const team of activeTeams(n)){
+      teams[team]=(n.teams[team]||[]).map(x=>[
+        x.label||x.city||'',x.start||'',x.end||'',
+        Number.isFinite(Number(x.lat))?Math.round(Number(x.lat)*100000)/100000:null,
+        Number.isFinite(Number(x.lon))?Math.round(Number(x.lon)*100000)/100000:null
+      ]);
+    }
+    return {v:1,n:n.name,t:teams};
+  }
+  function expandProject(c){
+    if(!c||c.v!==1||!c.t)return null;
+    const teams={};
+    for(const team of TEAM_ORDER){
+      if(team!=='本隊'&&!Object.prototype.hasOwnProperty.call(c.t,team))continue;
+      teams[team]=(c.t[team]||[]).map(a=>({id:uuid(),city:String(a[0]||''),label:String(a[0]||''),start:String(a[1]||''),end:String(a[2]||''),lat:a[3],lon:a[4]}));
+    }
+    return normalizeProject({id:uuid(),name:String(c.n||'分享專案'),teams});
+  }
+  async function compressedURL(p){
+    const raw=JSON.stringify(compactProject(p));
+    const packed=await compressText(raw);
+    const base=location.href.split('#')[0].split('?')[0];
+    const u=new URL(base);
+    u.searchParams.set('p',bytesToB64url(packed));
+    return u.toString();
+  }
+  async function handleShare(e){
+    e.preventDefault();e.stopImmediatePropagation();
+    const p=activeProject();
+    if(!p){setStatus('請先建立專案。','error');return}
+    try{
+      const url=await compressedURL(p);
+      if(navigator.share&&location.protocol!=='file:'){
+        try{await navigator.share({title:p.name,text:p.name,url});return}catch(err){if(err?.name==='AbortError')return}
+      }
+      const ok=await copyText(url);
+      setStatus(ok?`「${p.name}」壓縮分享連結已複製。`:'無法自動複製分享連結。',ok?'info':'error');
+    }catch(err){
+      setStatus(`無法建立壓縮分享連結：${err.message||'未知錯誤'}`,'error');
+    }
+  }
+  btn.addEventListener('click',handleShare,true);
+
+  async function restoreCompressed(){
+    const token=new URLSearchParams(location.search).get('p');
+    if(!token)return;
+    try{
+      const raw=await decompressText(b64urlToBytes(token));
+      const p=expandProject(JSON.parse(raw));
+      if(!p)throw new Error('分享資料格式錯誤');
+      readonlyProject=p;
+      isReadonly=true;
+      document.getElementById('readonlyBanner')?.classList.add('show');
+      renderProject();
+      renderAddToProjectBar();
+    }catch(err){
+      setStatus(`分享專案無法載入：${err.message||'連結可能不完整。'}`,'error');
+    }
+  }
+  restoreCompressed();
+})();
