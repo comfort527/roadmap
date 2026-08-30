@@ -41,11 +41,14 @@
       const style=document.createElement('style');
       style.id='historyWeatherStyle';
       style.textContent=`
-        .history-weather-note{padding:9px 14px;border-bottom:1px solid #dfe9ef;background:#f8fbfd;color:#607487;font-size:11px;line-height:1.45}
-        .history-head{background:#eef6fa!important;white-space:nowrap}
-        .history-value{font-weight:800;white-space:nowrap;color:#405f72}
-        .history-value.high{color:#a84d37}.history-value.low{color:#27739a}.history-value.rain{color:#27718f}
-        .history-loading{color:#95a5af;font-weight:600}
+        .history-weather-note{padding:9px 14px;border-bottom:1px solid #d9e4d5;background:#f3f8f0;color:#60705b;font-size:11px;line-height:1.45}
+        .history-head{background:#dfeeda!important;color:#38533b!important;white-space:nowrap;border-top:1px solid #c9ddc4!important;border-bottom:1px solid #c9ddc4!important}
+        .history-head:first-of-type{border-left:3px solid #a9c79f!important}
+        #weatherRows td:nth-child(n+7){background:#f3f8f0!important;border-bottom-color:#dce8d8!important}
+        #weatherRows td:nth-child(7){border-left:3px solid #b8d0b0!important}
+        .history-value{font-weight:800;white-space:nowrap;color:#405f48}
+        .history-value.high{color:#a4513b}.history-value.low{color:#33738e}.history-value.rain{color:#487454}
+        .history-loading{color:#8fa08b;font-weight:600}
       `;
       document.head.appendChild(style);
     }
