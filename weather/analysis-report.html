@@ -16,7 +16,8 @@ h1{margin:0;font-size:20px;line-height:1.35}
 .back{flex:0 0 auto;border:1px solid #cfd6da;background:#fff;border-radius:9px;padding:8px 12px;font-weight:700;font-size:14px;cursor:pointer}
 .main{max-width:980px;margin:0 auto;padding:16px}
 .viewer,.editor{display:block;width:100%;min-height:70vh;border:1px solid #dfe3e6;border-radius:12px;background:#fff;padding:18px;font:inherit;font-size:16px;line-height:1.8;color:#2f3437;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}
-.editor{resize:vertical;outline:none}
+.editor{resize:vertical;outline:none;white-space:pre-wrap}
+.editor:focus{border-color:#9bb4c2;box-shadow:0 0 0 3px rgba(90,130,150,.10)}
 .note{margin-top:8px;text-align:right;font-size:12px;color:#7a858b}
 .empty{color:#8b969c}
 @media(max-width:720px){.header{padding:10px 12px;align-items:flex-start}.header h1{font-size:18px}.back{padding:7px 10px;font-size:13px}.main{padding:10px}.viewer,.editor{min-height:72vh;padding:14px;font-size:15px;border-radius:9px}}
@@ -45,7 +46,15 @@ h1{margin:0;font-size:20px;line-height:1.35}
   const note=document.getElementById('note');
   const backBtn=document.getElementById('backBtn');
   let data=null;
+  let projectState=null;
+  let ownProject=null;
   try{data=JSON.parse(localStorage.getItem(storageKey)||'null')}catch{}
+  try{
+    projectState=JSON.parse(localStorage.getItem(PROJECTS_KEY)||'null');
+    if(data&&projectState&&Array.isArray(projectState.projects)){
+      ownProject=projectState.projects.find(x=>x.id===data.projectId)||null;
+    }
+  }catch{}
 
   function goBack(){
     const target=data&&data.sourceUrl?data.sourceUrl:'./';
@@ -60,7 +69,7 @@ h1{margin:0;font-size:20px;line-height:1.35}
   }
 
   function save(textarea){
-    if(!data||data.readonly)return;
+    if(!data||!ownProject)return;
     const text=textarea.value;
     data.report=text;
     try{localStorage.setItem(storageKey,JSON.stringify(data))}catch{}
@@ -68,7 +77,11 @@ h1{margin:0;font-size:20px;line-height:1.35}
       const state=JSON.parse(localStorage.getItem(PROJECTS_KEY)||'null');
       if(state&&Array.isArray(state.projects)){
         const p=state.projects.find(x=>x.id===data.projectId);
-        if(p){p.analysisReport=text;localStorage.setItem(PROJECTS_KEY,JSON.stringify(state));}
+        if(p){
+          p.analysisReport=text;
+          localStorage.setItem(PROJECTS_KEY,JSON.stringify(state));
+          ownProject=p;
+        }
       }
     }catch{}
   }
@@ -81,25 +94,30 @@ h1{margin:0;font-size:20px;line-height:1.35}
     reportHost.appendChild(div);
   }else{
     projectName.textContent=data.projectName||'天氣專案';
-    if(data.readonly){
-      const div=document.createElement('div');
-      div.className='viewer';
-      div.textContent=data.report||'尚無綜合分析報告';
-      reportHost.appendChild(div);
-    }else{
+    const canEdit=!!ownProject;
+    if(canEdit){
       const textarea=document.createElement('textarea');
       textarea.className='editor';
-      textarea.value=data.report||'';
-      textarea.placeholder='將綜合分析報告文字貼在這裡…';
+      textarea.value=String(ownProject.analysisReport??data.report??'');
+      textarea.placeholder='可直接在這裡輸入或貼上綜合分析報告…';
+      textarea.setAttribute('aria-label','綜合分析報告編輯區');
       reportHost.appendChild(textarea);
-      note.textContent='內容會自動儲存。';
+      note.textContent='可直接編輯，內容會自動儲存。';
       let timer=null;
       textarea.addEventListener('input',()=>{
         note.textContent='編輯中…';
         clearTimeout(timer);
-        timer=setTimeout(()=>{save(textarea);note.textContent='已儲存。'},400);
+        timer=setTimeout(()=>{save(textarea);note.textContent='已儲存。'},350);
       });
+      textarea.addEventListener('blur',()=>{save(textarea);note.textContent='已儲存。'});
       window.addEventListener('pagehide',()=>save(textarea));
+      setTimeout(()=>textarea.focus(),0);
+    }else{
+      const div=document.createElement('div');
+      div.className='viewer';
+      div.textContent=data.report||'尚無綜合分析報告';
+      reportHost.appendChild(div);
+      note.textContent='唯讀分享';
     }
   }
   backBtn.addEventListener('click',goBack);
