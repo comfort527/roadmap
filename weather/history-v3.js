@@ -5,17 +5,23 @@
   let historyRequestId = 0;
   const historyCache = new Map();
 
-  function currentHistoryYears(){
-    const y = new Date().getFullYear();
-    return {start:y-5,end:y-1};
+  function requestedDates(){
+    try{return enumerateDates(startInput.value,endInput.value)||[]}catch{return []}
+  }
+
+  function historyRange(dates){
+    const years=(dates||[]).map(d=>Number(String(d).slice(0,4))).filter(Number.isFinite);
+    const targetMin=years.length?Math.min(...years):new Date().getFullYear();
+    const targetMax=years.length?Math.max(...years):targetMin;
+    return {start:targetMin-5,end:targetMax-1};
   }
 
   function ensureHistoryUI(){
     const table=document.querySelector('.table-panel table');
     const headRow=table?.querySelector('thead tr');
-    if(headRow && !headRow.querySelector('[data-history-head]')){
-      const labels=['近5年最高溫','近5年最低溫','近5年降雨率'];
-      labels.forEach((label,i)=>{
+    if(headRow){
+      [...headRow.querySelectorAll('[data-history-head]')].forEach(el=>el.remove());
+      ['去年最高溫','去年最低溫','近5年降雨率'].forEach((label,i)=>{
         const th=document.createElement('th');
         th.textContent=label;
         th.dataset.historyHead=String(i);
@@ -23,14 +29,14 @@
         headRow.appendChild(th);
       });
     }
-    if(table && !document.getElementById('historyWeatherNote')){
-      const years=currentHistoryYears();
-      const note=document.createElement('div');
+    let note=document.getElementById('historyWeatherNote');
+    if(table && !note){
+      note=document.createElement('div');
       note.id='historyWeatherNote';
       note.className='history-weather-note';
-      note.textContent=`歷史參考：${years.start}–${years.end} 同月同日；降雨率＝5年間同日有雨（rain > 0.1 mm）的年份比例。`;
       table.parentElement?.parentElement?.insertBefore(note,table.parentElement);
     }
+    if(note)note.textContent='歷史參考：高低溫＝去年同月同日；近5年降雨率＝前5年間同日有雨（rain > 0.1 mm）的年份比例。';
     if(!document.getElementById('historyWeatherStyle')){
       const style=document.createElement('style');
       style.id='historyWeatherStyle';
@@ -48,6 +54,7 @@
   function ensureHistoryCells(){
     const rows=[...document.querySelectorAll('#weatherRows tr')];
     rows.forEach(row=>{
+      while(row.cells.length>9)row.deleteCell(row.cells.length-1);
       while(row.cells.length<9){
         const td=document.createElement('td');
         td.className='history-loading';
@@ -58,12 +65,12 @@
     return rows;
   }
 
-  function cacheKey(loc,years){
-    return `${Number(loc.latitude).toFixed(3)},${Number(loc.longitude).toFixed(3)}|${years.start}-${years.end}`;
+  function cacheKey(loc,range){
+    return `${Number(loc.latitude).toFixed(3)},${Number(loc.longitude).toFixed(3)}|${range.start}-${range.end}`;
   }
 
-  async function fetchHistoricalFiveYears(loc){
-    const years=currentHistoryYears(),key=cacheKey(loc,years);
+  async function fetchHistorical(loc,dates){
+    const range=historyRange(dates),key=cacheKey(loc,range);
     if(historyCache.has(key))return historyCache.get(key);
     try{
       const stored=sessionStorage.getItem(`weatherHistory:${key}`);
@@ -74,16 +81,15 @@
       }
     }catch{}
 
-    const start=`${years.start}-01-01`,end=`${years.end}-12-31`;
+    const start=`${range.start}-01-01`,end=`${range.end}-12-31`;
     const url=`https://archive-api.open-meteo.com/v1/archive?latitude=${encodeURIComponent(loc.latitude)}&longitude=${encodeURIComponent(loc.longitude)}&start_date=${start}&end_date=${end}&daily=temperature_2m_max,temperature_2m_min,rain_sum&timezone=auto`;
     const response=await fetch(url);
     if(!response.ok){
       const body=await response.json().catch(()=>({}));
-      throw new Error(body.reason||'近5年歷史資料暫時無法取得。');
+      throw new Error(body.reason||'歷史資料暫時無法取得。');
     }
     const data=await response.json();
-    const daily=data.daily||{};
-    const packed={years,daily};
+    const packed={range,daily:data.daily||{}};
     historyCache.set(key,packed);
     try{sessionStorage.setItem(`weatherHistory:${key}`,JSON.stringify(packed))}catch{}
     return packed;
@@ -101,50 +107,54 @@
     return map;
   }
 
-  function calcForTargetDate(targetISO,map,years){
+  function calcForTargetDate(targetISO,map){
+    const y=Number(targetISO.slice(0,4));
     const md=targetISO.slice(5);
-    const highs=[],lows=[],rains=[];
-    for(let y=years.start;y<=years.end;y++){
-      const item=map.get(`${y}-${md}`);
-      if(!item)continue;
-      if(item.high!==null)highs.push(item.high);
-      if(item.low!==null)lows.push(item.low);
-      if(item.rain!==null)rains.push(item.rain);
+    const last=map.get(`${y-1}-${md}`)||{};
+    const rains=[];
+    for(let n=1;n<=5;n++){
+      const item=map.get(`${y-n}-${md}`);
+      if(item && item.rain!==null && item.rain!==undefined)rains.push(Number(item.rain));
     }
     return {
-      high:highs.length?Math.max(...highs):null,
-      low:lows.length?Math.min(...lows):null,
+      high:validNumber(last.high),
+      low:validNumber(last.low),
       rainRate:rains.length?Math.round(rains.filter(v=>v>0.1).length/rains.length*100):null,
-      samples:Math.max(highs.length,lows.length,rains.length)
+      rainSamples:rains.length,
+      lastYear:y-1,
+      rainStart:y-5,
+      rainEnd:y-1
     };
   }
 
   function fillCell(cell,value,type,suffix){
     cell.className=`history-value ${type}`;
-    cell.textContent=value===null?'—':`${Math.round(value)}${suffix}`;
+    cell.textContent=value===null?'—':`${type==='rain'?Math.round(value):Number(value).toFixed(1)}${suffix}`;
   }
 
   async function loadHistoricalColumns(loc){
     if(!loc||!Number.isFinite(Number(loc.latitude))||!Number.isFinite(Number(loc.longitude)))return;
+    const dates=requestedDates();
+    if(!dates.length)return;
     const requestId=++historyRequestId;
     ensureHistoryUI();
     const rows=ensureHistoryCells();
     rows.forEach(row=>{for(let i=6;i<9;i++){row.cells[i].className='history-loading';row.cells[i].textContent='…'}});
     try{
-      const packed=await fetchHistoricalFiveYears(loc);
+      const packed=await fetchHistorical(loc,dates);
       if(requestId!==historyRequestId)return;
       const map=buildDailyMap(packed.daily);
-      const dates=enumerateDates(startInput.value,endInput.value);
       const freshRows=ensureHistoryCells();
       freshRows.forEach((row,i)=>{
         const date=dates[i];
         if(!date)return;
-        const stats=calcForTargetDate(date,map,packed.years);
+        const stats=calcForTargetDate(date,map);
         fillCell(row.cells[6],stats.high,'high','°C');
         fillCell(row.cells[7],stats.low,'low','°C');
         fillCell(row.cells[8],stats.rainRate,'rain','%');
-        const tip=`${packed.years.start}–${packed.years.end} 同月同日，樣本 ${stats.samples} 年`;
-        row.cells[6].title=tip;row.cells[7].title=tip;row.cells[8].title=tip;
+        row.cells[6].title=`${stats.lastYear} 同月同日最高溫`;
+        row.cells[7].title=`${stats.lastYear} 同月同日最低溫`;
+        row.cells[8].title=`${stats.rainStart}–${stats.rainEnd} 同月同日，樣本 ${stats.rainSamples} 年`;
       });
     }catch(err){
       if(requestId!==historyRequestId)return;
