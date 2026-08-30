@@ -7,6 +7,7 @@
 <title>國際都市天氣查詢</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
 <link rel="stylesheet" href="./style-v2.css">
+<link rel="stylesheet" href="./project-ui-v2.css">
 </head>
 <body>
 <div class="shell">
@@ -22,7 +23,7 @@
 <div class="result-head"><div><h2 id="cityName" class="city-name"></h2><p id="cityMeta" class="city-meta"></p></div><div id="updated" class="updated"></div></div>
 <div id="addToProjectBar" class="add-project-bar owner-only"><div class="add-project-field"><label for="addProjectSelect">加入專案</label><select id="addProjectSelect"></select></div><div class="add-project-field"><label for="addTeamSelect">加入類別</label><select id="addTeamSelect"></select></div><button id="addCurrentQueryBtn" class="add-current-btn" type="button">加入專案</button></div>
 <div class="share-tools"><button id="saveOptionBtn" class="memory-dot" type="button" title="記憶目前地點與日期" aria-label="記憶目前地點與日期">☆</button><button id="shareOptionBtn" class="secondary share" type="button">↗ 分享目前選項</button></div>
-<div class="panel map-panel"><div class="map-head"><div id="mapTitle" class="map-title">城市位置</div><div class="map-note"><span class="map-help">拖曳圖標或點地圖即可查詢該處氣象</span>・OpenStreetMap</div></div><div id="cityMap" class="city-map" role="application" aria-label="可移動氣象查詢位置的地圖"></div></div>
+<div class="panel map-panel"><div class="map-head"><div id="mapTitle" class="map-title">城市位置</div><div class="map-note">OpenStreetMap</div></div><div id="cityMap" class="city-map" role="application" aria-label="可移動氣象查詢位置的地圖"></div></div>
 <div class="panel table-panel"><div class="table-scroll"><table><thead><tr><th>日期</th><th>最高溫</th><th>最低溫</th><th>降雨機率</th><th>日出時間</th><th>日落時間</th></tr></thead><tbody id="weatherRows"></tbody></table></div></div>
 <aside class="panel sources"><div class="sources-row"><div><h3>其他知名天氣網站交叉核對</h3><p>表格採用 Open-Meteo 的所在地最佳匹配模型；重要行程建議再查看當地官方警報與即時雷達。</p></div><div id="sourceLinks" class="source-links"></div></div></aside>
 </section>
@@ -31,6 +32,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script src="./app-v2a.js"></script>
 <script src="./app-v2b.js"></script>
+<script src="./project-ui-v2.js"></script>
 <script src="./share-compress-v1.js"></script>
 <script src="./history-v3.js"></script>
 </body>
