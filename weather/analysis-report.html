@@ -6,71 +6,103 @@
 <meta name="color-scheme" content="light">
 <title>綜合分析報告</title>
 <style>
-*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#f6f3f4;color:#3f3438;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",Arial,sans-serif}body{padding:0}.page{min-height:100vh;display:flex;flex-direction:column}.topbar{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;background:#fff7f8;border-bottom:1px solid #ead8dd}.title-wrap{min-width:0}.title-wrap h1{margin:0;font-size:20px;line-height:1.3}.project-name{margin-top:4px;color:#79656c;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.back-btn{flex:0 0 auto;border:1px solid #d8bec6;background:#fff;color:#7d4356;border-radius:10px;padding:9px 14px;font-size:14px;font-weight:800;cursor:pointer}.content{flex:1;padding:18px}.report-card{max-width:980px;margin:0 auto;background:#fff;border:1px solid #ead8dd;border-radius:14px;box-shadow:0 8px 24px rgba(91,62,72,.06);overflow:hidden}.report-view,.report-edit{display:block;width:100%;min-height:calc(100vh - 126px);margin:0;padding:22px 24px;border:0;outline:0;background:#fff;color:#3f3438;font:inherit;font-size:16px;line-height:1.8;white-space:pre-wrap;overflow-wrap:anywhere}.report-edit{resize:none}.empty{color:#9a858c}.save-note{max-width:980px;margin:10px auto 0;color:#7d6c72;font-size:12px;text-align:right}
-@media(max-width:720px){.topbar{padding:11px 12px}.title-wrap h1{font-size:18px}.back-btn{padding:8px 11px}.content{padding:10px}.report-card{border-radius:10px}.report-view,.report-edit{min-height:calc(100vh - 104px);padding:16px 15px;font-size:15px}.save-note{padding:0 2px}}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:#f5f6f7;color:#2f3437;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",Arial,sans-serif}
+body{min-height:100vh}
+.header{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid #dfe3e6;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.header-main{min-width:0}
+h1{margin:0;font-size:20px;line-height:1.35}
+.project{margin-top:3px;font-size:13px;color:#68747b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.back{flex:0 0 auto;border:1px solid #cfd6da;background:#fff;border-radius:9px;padding:8px 12px;font-weight:700;font-size:14px;cursor:pointer}
+.main{max-width:980px;margin:0 auto;padding:16px}
+.viewer,.editor{display:block;width:100%;min-height:70vh;border:1px solid #dfe3e6;border-radius:12px;background:#fff;padding:18px;font:inherit;font-size:16px;line-height:1.8;color:#2f3437;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}
+.editor{resize:vertical;outline:none}
+.note{margin-top:8px;text-align:right;font-size:12px;color:#7a858b}
+.empty{color:#8b969c}
+@media(max-width:720px){.header{padding:10px 12px;align-items:flex-start}.header h1{font-size:18px}.back{padding:7px 10px;font-size:13px}.main{padding:10px}.viewer,.editor{min-height:72vh;padding:14px;font-size:15px;border-radius:9px}}
 </style>
 </head>
 <body>
-<div class="page">
-  <header class="topbar">
-    <div class="title-wrap">
-      <h1>綜合分析報告</h1>
-      <div id="projectName" class="project-name"></div>
-    </div>
-    <button id="backBtn" class="back-btn" type="button">← 返回天氣頁面</button>
-  </header>
-  <main class="content">
-    <div class="report-card" id="reportCard"></div>
-    <div id="saveNote" class="save-note"></div>
-  </main>
-</div>
+<header class="header">
+  <div class="header-main">
+    <h1>綜合分析報告</h1>
+    <div id="projectName" class="project"></div>
+  </div>
+  <button id="backBtn" class="back" type="button">← 返回天氣頁面</button>
+</header>
+<main class="main">
+  <div id="reportHost"></div>
+  <div id="note" class="note"></div>
+</main>
 <script>
 (function(){
-  const KEY='weatherAnalysisReportPageV1';
+  const PREFIX='weatherAnalysisReportTabV2:';
   const PROJECTS_KEY='internationalWeatherProjectsV2';
+  const key=new URLSearchParams(location.search).get('k')||'';
+  const storageKey=PREFIX+key;
   const projectName=document.getElementById('projectName');
-  const reportCard=document.getElementById('reportCard');
-  const saveNote=document.getElementById('saveNote');
+  const reportHost=document.getElementById('reportHost');
+  const note=document.getElementById('note');
   const backBtn=document.getElementById('backBtn');
   let data=null;
-  try{data=JSON.parse(sessionStorage.getItem(KEY)||'null')}catch{}
+  try{data=JSON.parse(localStorage.getItem(storageKey)||'null')}catch{}
+
+  function goBack(){
+    const target=data&&data.sourceUrl?data.sourceUrl:'./';
+    try{localStorage.removeItem(storageKey)}catch{}
+    if(window.opener&&!window.opener.closed){
+      try{window.opener.focus()}catch{}
+      window.close();
+      setTimeout(()=>{location.href=target},100);
+    }else{
+      location.href=target;
+    }
+  }
+
+  function save(textarea){
+    if(!data||data.readonly)return;
+    const text=textarea.value;
+    data.report=text;
+    try{localStorage.setItem(storageKey,JSON.stringify(data))}catch{}
+    try{
+      const state=JSON.parse(localStorage.getItem(PROJECTS_KEY)||'null');
+      if(state&&Array.isArray(state.projects)){
+        const p=state.projects.find(x=>x.id===data.projectId);
+        if(p){p.analysisReport=text;localStorage.setItem(PROJECTS_KEY,JSON.stringify(state));}
+      }
+    }catch{}
+  }
+
   if(!data){
     projectName.textContent='找不到報告資料';
-    reportCard.innerHTML='<div class="report-view empty">這個報告頁面沒有可顯示的內容，請返回天氣頁面後重新開啟。</div>';
+    const div=document.createElement('div');
+    div.className='viewer empty';
+    div.textContent='報告資料無法讀取，請返回天氣頁面後重新開啟。';
+    reportHost.appendChild(div);
   }else{
     projectName.textContent=data.projectName||'天氣專案';
     if(data.readonly){
       const div=document.createElement('div');
-      div.className='report-view';
+      div.className='viewer';
       div.textContent=data.report||'尚無綜合分析報告';
-      reportCard.appendChild(div);
+      reportHost.appendChild(div);
     }else{
       const textarea=document.createElement('textarea');
-      textarea.className='report-edit';
+      textarea.className='editor';
       textarea.value=data.report||'';
       textarea.placeholder='將綜合分析報告文字貼在這裡…';
-      reportCard.appendChild(textarea);
-      saveNote.textContent='離開此頁面時會自動儲存。';
-      const save=function(){
-        const text=textarea.value.trim();
-        data.report=text;
-        try{sessionStorage.setItem(KEY,JSON.stringify(data))}catch{}
-        try{
-          const state=JSON.parse(localStorage.getItem(PROJECTS_KEY)||'null');
-          if(state&&Array.isArray(state.projects)){
-            const p=state.projects.find(x=>x.id===data.projectId);
-            if(p){p.analysisReport=text;localStorage.setItem(PROJECTS_KEY,JSON.stringify(state));}
-          }
-        }catch{}
-      };
-      textarea.addEventListener('input',()=>{saveNote.textContent='編輯中…'});
-      textarea.addEventListener('blur',()=>{save();saveNote.textContent='已儲存。'});
-      window.addEventListener('pagehide',save);
-      backBtn.addEventListener('click',()=>{save();location.href=data.sourceUrl||'./';});
-      return;
+      reportHost.appendChild(textarea);
+      note.textContent='內容會自動儲存。';
+      let timer=null;
+      textarea.addEventListener('input',()=>{
+        note.textContent='編輯中…';
+        clearTimeout(timer);
+        timer=setTimeout(()=>{save(textarea);note.textContent='已儲存。'},400);
+      });
+      window.addEventListener('pagehide',()=>save(textarea));
     }
   }
-  backBtn.addEventListener('click',()=>{location.href=(data&&data.sourceUrl)||'./';});
+  backBtn.addEventListener('click',goBack);
 })();
 </script>
 </body>
