@@ -3,7 +3,7 @@
   const oldNormalize=normalizeProject;
   normalizeProject=function(p){const out=oldNormalize(p);if(out)out.analysisReport=String(p?.analysisReport||'');return out};
   const collapsedKey='weatherProjectCollapsedTeamsV1';
-  const REPORT_KEY_PREFIX='weatherAnalysisReportTabV2:';
+  const REPORT_KEY_PREFIX='weatherAnalysisReportTabV3:';
   function readCollapsed(){try{return JSON.parse(localStorage.getItem(collapsedKey)||'{}')}catch{return{}}}
   function writeCollapsed(v){try{localStorage.setItem(collapsedKey,JSON.stringify(v))}catch{}}
   function collapseId(projectId,team){return `${projectId||'none'}::${team}`}
@@ -13,13 +13,13 @@
       projectId:p.id||'',
       projectName:p.name||'天氣專案',
       report:String(p.analysisReport||''),
-      readonly:!!isReadonly,
+      editable:!isReadonly,
       sourceUrl:location.href,
       createdAt:Date.now()
     };
     try{localStorage.setItem(REPORT_KEY_PREFIX+key,JSON.stringify(payload))}catch(e){setStatus('無法開啟綜合分析報告。','error');return}
     const url=`./analysis-report.html?k=${encodeURIComponent(key)}`;
-    const tab=window.open(url,'_blank','noopener');
+    const tab=window.open(url,'_blank');
     if(!tab){
       try{localStorage.removeItem(REPORT_KEY_PREFIX+key)}catch{}
       setStatus('瀏覽器阻擋了新分頁，請允許此網站開啟分頁後再試一次。','error');
