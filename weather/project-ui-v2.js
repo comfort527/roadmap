@@ -30,7 +30,5 @@
     projectGroups.querySelector('[data-analysis-collapse]')?.addEventListener('click',()=>{if(!isReadonly){const text=projectGroups.querySelector('[data-analysis-text]')?.value||'';p.analysisReport=text.trim();writeProjects();setStatus('綜合分析報告已儲存。','info')}if(overlay)overlay.hidden=true;document.body.style.overflow=''});
     renderAddToProjectBar();
   };
-  function renameRainHeader(){document.querySelectorAll('.history-head').forEach(th=>{if(th.textContent.trim()==='近10年降雨率')th.textContent='近年當日降雨率'});const note=document.getElementById('historyWeatherNote');if(note)note.textContent='歷史參考：高低溫＝去年同月同日；近年當日降雨率＝以前10年間同日有雨（rain > 0.1 mm）的年份比例。'}
-  new MutationObserver(renameRainHeader).observe(document.documentElement,{childList:true,subtree:true});
-  renderProject();renameRainHeader();
+  renderProject();
 })();
