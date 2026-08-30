@@ -41,10 +41,11 @@
       const style=document.createElement('style');
       style.id='historyWeatherStyle';
       style.textContent=`
-        .history-weather-note{padding:9px 14px;border-bottom:1px solid #d9e4d5;background:#f3f8f0;color:#60705b;font-size:11px;line-height:1.45}
-        .history-head{background:#dfeeda!important;color:#38533b!important;white-space:nowrap;border-top:1px solid #c9ddc4!important;border-bottom:1px solid #c9ddc4!important}
+        .table-panel th,.table-panel td{padding-left:8px!important;padding-right:8px!important}
+        .history-weather-note{padding:9px 10px;border-bottom:1px solid #d9e4d5;background:#f3f8f0;color:#60705b;font-size:11px;line-height:1.45}
+        .history-head{background:#dfeeda!important;color:#38533b!important;white-space:nowrap;border-top:1px solid #c9ddc4!important;border-bottom:1px solid #c9ddc4!important;padding-left:7px!important;padding-right:7px!important}
         .history-head:first-of-type{border-left:3px solid #a9c79f!important}
-        #weatherRows td:nth-child(n+7){background:#f3f8f0!important;border-bottom-color:#dce8d8!important}
+        #weatherRows td:nth-child(n+7){background:#f3f8f0!important;border-bottom-color:#dce8d8!important;padding-left:7px!important;padding-right:7px!important}
         #weatherRows td:nth-child(7){border-left:3px solid #b8d0b0!important}
         .history-value{font-weight:800;white-space:nowrap;color:#405f48}
         .history-value.high{color:#a4513b}.history-value.low{color:#33738e}.history-value.rain{color:#487454}
