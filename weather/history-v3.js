@@ -6,9 +6,9 @@
   function historyRange(dates){const years=(dates||[]).map(d=>Number(String(d).slice(0,4))).filter(Number.isFinite);const targetMin=years.length?Math.min(...years):new Date().getFullYear();const targetMax=years.length?Math.max(...years):targetMin;return {start:targetMin-10,end:targetMax-1}}
   function ensureHistoryUI(){
     const table=document.querySelector('.table-panel table'),headRow=table?.querySelector('thead tr');
-    if(headRow){[...headRow.querySelectorAll('[data-history-head]')].forEach(el=>el.remove());['去年最高溫','去年最低溫','近10年降雨率'].forEach((label,i)=>{const th=document.createElement('th');th.textContent=label;th.dataset.historyHead=String(i);th.className='history-head';headRow.appendChild(th)})}
+    if(headRow){[...headRow.querySelectorAll('[data-history-head]')].forEach(el=>el.remove());['去年最高溫','去年最低溫','近年當日降雨率'].forEach((label,i)=>{const th=document.createElement('th');th.textContent=label;th.dataset.historyHead=String(i);th.className='history-head';headRow.appendChild(th)})}
     let note=document.getElementById('historyWeatherNote');if(table&&!note){note=document.createElement('div');note.id='historyWeatherNote';note.className='history-weather-note';table.parentElement?.parentElement?.insertBefore(note,table.parentElement)}
-    if(note)note.textContent='歷史參考：高低溫＝去年同月同日；近10年降雨率＝前10年間同日有雨（rain > 0.1 mm）的年份比例。';
+    if(note)note.textContent='歷史參考：高低溫＝去年同月同日；近年當日降雨率＝前10年間同日有雨（rain > 0.1 mm）的年份比例。';
     if(!document.getElementById('historyWeatherStyle')){const style=document.createElement('style');style.id='historyWeatherStyle';style.textContent=`
       .table-panel th,.table-panel td{padding-left:4px!important;padding-right:4px!important}
       .history-weather-note{padding:9px 8px;border-bottom:1px solid #d9e4d5;background:#f3f8f0;color:#60705b;font-size:11px;line-height:1.45}
