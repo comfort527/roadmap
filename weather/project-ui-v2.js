@@ -3,21 +3,27 @@
   const oldNormalize=normalizeProject;
   normalizeProject=function(p){const out=oldNormalize(p);if(out)out.analysisReport=String(p?.analysisReport||'');return out};
   const collapsedKey='weatherProjectCollapsedTeamsV1';
-  const REPORT_SESSION_KEY='weatherAnalysisReportPageV1';
+  const REPORT_KEY_PREFIX='weatherAnalysisReportTabV2:';
   function readCollapsed(){try{return JSON.parse(localStorage.getItem(collapsedKey)||'{}')}catch{return{}}}
   function writeCollapsed(v){try{localStorage.setItem(collapsedKey,JSON.stringify(v))}catch{}}
   function collapseId(projectId,team){return `${projectId||'none'}::${team}`}
   function openAnalysisReport(p){
-    try{
-      sessionStorage.setItem(REPORT_SESSION_KEY,JSON.stringify({
-        projectId:p.id||'',
-        projectName:p.name||'天氣專案',
-        report:String(p.analysisReport||''),
-        readonly:!!isReadonly,
-        sourceUrl:location.href
-      }));
-    }catch(e){setStatus('無法開啟綜合分析報告。','error');return}
-    window.location.href='./analysis-report.html';
+    const key=(crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const payload={
+      projectId:p.id||'',
+      projectName:p.name||'天氣專案',
+      report:String(p.analysisReport||''),
+      readonly:!!isReadonly,
+      sourceUrl:location.href,
+      createdAt:Date.now()
+    };
+    try{localStorage.setItem(REPORT_KEY_PREFIX+key,JSON.stringify(payload))}catch(e){setStatus('無法開啟綜合分析報告。','error');return}
+    const url=`./analysis-report.html?k=${encodeURIComponent(key)}`;
+    const tab=window.open(url,'_blank','noopener');
+    if(!tab){
+      try{localStorage.removeItem(REPORT_KEY_PREFIX+key)}catch{}
+      setStatus('瀏覽器阻擋了新分頁，請允許此網站開啟分頁後再試一次。','error');
+    }
   }
   renderProject=function(){
     const p=activeProject();document.body.classList.toggle('readonly',isReadonly);renderProjectSwitcher();
