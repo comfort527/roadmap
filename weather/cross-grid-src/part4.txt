@@ -1,13 +1,4 @@
-'Roma',lat:41.8933,lon:12.4829},{id:'tokyo',name:'東京',english:'Tokyo',lat:35.6762,lon:139.6503}];
-  function fresh(name){return{id:uid(),name,columns:initial.slice(0,4).map(c=>({id:uid(),locationId:c.id})),rows:Array.from({length:10},(_,i)=>({id:uid(),date:core.shift(today(),i)})),colors:{}}}
-  const sharedNode=$('sharedProject');let shared=null;try{shared=(await shareFromHash())||(sharedNode?JSON.parse(sharedNode.textContent):null)}catch(e){document.documentElement.dataset.readonly='true';$('readonlyView').classList.add('share-error');$('readonlyTitle').textContent='分享專案無法載入';$('readonlyReport').hidden=false;$('readonlyReportText').textContent='分享連結可能不完整或已損壞，請請分享者重新產生分享網址。';return}const readonly=!!shared;
-  let state;try{state=readonly?{projects:[shared.project],activeId:shared.project.id,locations:shared.locations,textSize:'large'}:JSON.parse(localStorage.getItem(KEY))}catch{}if(!state||!Array.isArray(state.projects)||!state.projects.length||!Array.isArray(state.locations)){const p=fresh('專案國外天氣');state={projects:[p],activeId:p.id,locations:initial,textSize:'large'}}
-  let generation=0,controller=null,lastAttempt=0,placeTarget=null,dateTarget=null,nameMode='new',searchGeneration=0,searchController=null;const cache=new Map(),referenceCache=new Map();
-  const project=()=>state.projects.find(p=>p.id===state.activeId)||state.projects[0],loc=id=>state.locations.find(l=>l.id===id),cellKey=(r,c)=>r.id+'|'+c.id;
-  function sequence(p,start=p.rows[0].date){p.rows.forEach((r,i)=>r.date=core.shift(start,i))}
-  state.projects.forEach(p=>sequence(p));
-  function save(){if(readonly)return;try{localStorage.setItem(KEY,JSON.stringify(state))}catch{$('status').textContent='瀏覽器無法儲存，請匯出專案備份。'}}
-  function el(tag,text,cls){const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n}
+,cls){const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n}
   function opt(value,text){const n=el('option',text);n.value=value;return n}
   function short(date){const [,m,d]=date.split('-');return Number(m)+'/'+Number(d)}
   function renderReport(){const p=project(),text=String(p.reportText||'').trim();$('reportLink').hidden=!text;$('editReport').textContent=text?'修改分析報告':'貼上分析報告';if(readonly){$('readonlyTitle').textContent=p.name||'分享專案';$('readonlyReport').hidden=!text;$('readonlyReportText').textContent=text}}
@@ -20,4 +11,21 @@
       p.columns.forEach(col=>{const key=cellKey(row,col),mode=['blue','orange'].includes(p.colors[key])?p.colors[key]:'hidden',td=el('td',undefined,mode==='hidden'?'cell-hidden':mode);td.dataset.row=row.id;td.dataset.col=col.id;const weather=el('div',undefined,'weather');weather.hidden=mode==='hidden';weather.append(el('div','讀取中…','message'));const color=el('select',undefined,'color');color.setAttribute('aria-label',`${loc(col.locationId)?.name} ${row.date} 顯示方式`);color.append(opt('blue','藍色：先遣'),opt('orange','橘色：本隊'),opt('hidden','不顯示'));color.value=mode;color.disabled=readonly;color.onchange=()=>{if(readonly)return;p.colors[key]=color.value;weather.hidden=color.value==='hidden';td.className=color.value==='hidden'?'cell-hidden':color.value;save()};td.append(weather,color);tr.append(td)});table.tBodies[0].append(tr)});
   }
   async function json(url,signal,timeoutMs=25000){
-    const ctl=new AbortController(),
+    const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),timeoutMs),abort=()=>ctl.abort();
+    if(signal){if(signal.aborted)ctl.abort();else signal.addEventListener('abort',abort,{once:true})}
+    try{
+      const res=await fetch(url,{signal:ctl.signal});
+      if(!res.ok){let reason='';try{const body=await res.json();reason=body?.reason||body?.error||''}catch{}throw new Error(reason?`服務暫時無法回應（${res.status}：${reason}）`:`服務暫時無法回應（${res.status}）`)}
+      return res.json();
+    }finally{clearTimeout(timer);if(signal)signal.removeEventListener('abort',abort)}
+  }
+  async function archive(l,start,end,daily,signal){
+    const base={latitude:l.lat,longitude:l.lon,start_date:start,end_date:end,timezone:'auto',daily};
+    let lastError;
+    for(const extra of [{},{models:'era5'}]){
+      try{return await json('https://archive-api.open-meteo.com/v1/archive?'+new URLSearchParams({...base,...extra}),signal,45000)}catch(e){if(signal?.aborted)throw e;lastError=e}
+    }
+    throw lastError||new Error('歷史氣象資料暫時無法取得');
+  }
+  async function historicalForecast(l,start,end,daily,signal){
+    const params=new URLSearchParams({latitude:l.lat,longitude:l.lon,start_date:start,end_da
