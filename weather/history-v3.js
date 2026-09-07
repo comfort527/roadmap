@@ -3,7 +3,15 @@
   if(!originalRenderWeather)return;
   let historyRequestId=0; const historyCache=new Map();
   const ARCHIVE_MIN_YEAR=1940;
-  function requestedDates(){try{return enumerateDates(startInput.value,endInput.value)||[]}catch{return []}}
+  function enumerateHistoryDates(start,end){
+    if(!start||!end||start>end)return[];
+    const out=[],d=new Date(`${start}T12:00:00`),last=new Date(`${end}T12:00:00`);
+    if(Number.isNaN(d.getTime())||Number.isNaN(last.getTime()))return[];
+    let guard=0;
+    while(d<=last&&guard<3700){out.push(localISO(d));d.setDate(d.getDate()+1);guard++}
+    return out;
+  }
+  function requestedDates(){return enumerateHistoryDates(startInput.value,endInput.value)}
   function historyRange(dates){
     const years=(dates||[]).map(d=>Number(String(d).slice(0,4))).filter(Number.isFinite);
     const targetMin=years.length?Math.min(...years):new Date().getFullYear();
