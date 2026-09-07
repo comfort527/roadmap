@@ -75,7 +75,6 @@
     }
 
     const sorted=sortDaily(daily);
-    if(!sorted.time.length)throw new Error('天氣資料暫時無法取得，請稍後重新查詢。');
     return{daily:sorted,timezone,timezone_abbreviation,_requested:{start:requestedStart,end:requestedEnd},_available:{start:'1940-01-01',end:forecastEndISO},_partial:partial||requestedStart<'1940-01-01'||requestedEnd>forecastEndISO};
   };
 })();
