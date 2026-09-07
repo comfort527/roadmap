@@ -1,18 +1,18 @@
 (function(){
   const originalRenderWeather = typeof renderWeather === 'function' ? renderWeather : null;
   if(!originalRenderWeather)return;
-  let historyRequestId=0; const historyCache=new Map();
+  let historyRequestId=0,historyController=null; const historyCache=new Map();
+  const CACHE_TTL=24*60*60*1000;
   const ARCHIVE_MIN_YEAR=1940;
   const BASE_NOTE='歷史參考：高低溫＝去年同月同日；近年當日降雨率＝最多前10年間同日有雨（rain > 0.1 mm）的年份比例。1940 年以前無歷史資料時顯示「—」。';
   function enumerateHistoryDates(start,end){
     if(!start||!end||start>end)return[];
     const out=[],d=new Date(`${start}T12:00:00`),last=new Date(`${end}T12:00:00`);
     if(Number.isNaN(d.getTime())||Number.isNaN(last.getTime()))return[];
-    let guard=0;
-    while(d<=last&&guard<3700){out.push(localISO(d));d.setDate(d.getDate()+1);guard++}
+    while(d<=last){out.push(localISO(d));d.setDate(d.getDate()+1)}
     return out;
   }
-  function requestedDates(){return enumerateHistoryDates(startInput.value,endInput.value)}
+  function requestedDates(request){return enumerateHistoryDates(request.start,request.end)}
   function historyRange(dates){
     const years=(dates||[]).map(d=>Number(String(d).slice(0,4))).filter(Number.isFinite);
     const targetMin=years.length?Math.min(...years):new Date().getFullYear();
@@ -37,84 +37,149 @@
       #weatherRows td:nth-child(7){border-left:3px solid #b8d0b0!important}
       .history-value{font-weight:800;white-space:nowrap;color:#405f48}.history-value.high{color:#a4513b}.history-value.low{color:#33738e}.history-value.rain{color:#487454}.history-loading{color:#8fa08b;font-weight:600}`;document.head.appendChild(style)}
   }
-  function setHistoryNote(message,state='info',retryLoc=null){
+  function setHistoryNote(message,state='info',retry=null){
     ensureHistoryUI();const note=document.getElementById('historyWeatherNote');if(!note)return;
     note.dataset.historyStatus=state;note.textContent=message;
-    if(retryLoc){const btn=document.createElement('button');btn.type='button';btn.className='history-retry-btn';btn.textContent='重試';btn.addEventListener('click',()=>loadHistoricalColumns(retryLoc,true));note.appendChild(btn)}
+    if(retry){const btn=document.createElement('button');btn.type='button';btn.className='history-retry-btn';btn.textContent=retry.label;btn.addEventListener('click',retry.run);note.appendChild(btn)}
   }
   function ensureHistoryCells(){const rows=[...document.querySelectorAll('#weatherRows tr')];rows.forEach(row=>{while(row.cells.length>9)row.deleteCell(row.cells.length-1);while(row.cells.length<9){const td=document.createElement('td');td.className='history-loading';td.textContent='…';row.appendChild(td)}});return rows}
-  function cacheKey(loc,range){return `${Number(loc.latitude).toFixed(3)},${Number(loc.longitude).toFixed(3)}|${range.start}-${range.end}`}
-  function sleep(ms){return new Promise(resolve=>setTimeout(resolve,ms))}
-  async function fetchJsonRetry(url,attempts=2){
-    let lastError=null;
-    for(let attempt=1;attempt<=attempts;attempt++){
-      const controller=typeof AbortController!=='undefined'?new AbortController():null;
-      const timer=controller?setTimeout(()=>controller.abort(),12000):null;
-      try{
-        const response=await fetch(url,{cache:'no-store',signal:controller?.signal});
-        if(timer)clearTimeout(timer);
-        if(!response.ok){const body=await response.json().catch(()=>({}));throw new Error(body.reason||`歷史資料服務回應 ${response.status}`)}
-        return await response.json();
-      }catch(err){
-        if(timer)clearTimeout(timer);lastError=err;
-        if(attempt<attempts)await sleep(400*attempt);
-      }
-    }
-    throw lastError||new Error('歷史資料暫時無法取得。');
+  function validNumber(value){
+    return typeof value==='number'&&Number.isFinite(value)?value:null;
   }
-  function archiveURL(loc,startYear,endYear){
-    const start=`${startYear}-01-01`,end=`${endYear}-12-31`;
-    return `https://archive-api.open-meteo.com/v1/archive?latitude=${encodeURIComponent(loc.latitude)}&longitude=${encodeURIComponent(loc.longitude)}&start_date=${start}&end_date=${end}&daily=temperature_2m_max,temperature_2m_min,rain_sum&timezone=auto`;
+  function cacheKey(loc,start,end){
+    return `weatherHistory:v4:${Number(loc.latitude).toFixed(5)},${Number(loc.longitude).toFixed(5)}|${start}|${end}`;
   }
   function emptyHistoryDaily(){return{time:[],temperature_2m_max:[],temperature_2m_min:[],rain_sum:[]}}
-  function appendHistoryDaily(target,source){const times=source?.time||[];for(let i=0;i<times.length;i++){target.time.push(times[i]);target.temperature_2m_max.push(source.temperature_2m_max?.[i]??null);target.temperature_2m_min.push(source.temperature_2m_min?.[i]??null);target.rain_sum.push(source.rain_sum?.[i]??null)}}
-  async function fetchHistorical(loc,dates,force=false){
-    const range=historyRange(dates),key=cacheKey(loc,range),storageKey=`weatherHistory:${key}`;
-    if(range.end<ARCHIVE_MIN_YEAR)return{range,daily:emptyHistoryDaily(),partial:true};
-    if(force){historyCache.delete(key);try{sessionStorage.removeItem(storageKey)}catch{}}
-    if(historyCache.has(key))return historyCache.get(key);
-    try{const stored=sessionStorage.getItem(storageKey);if(stored){const parsed=JSON.parse(stored);historyCache.set(key,parsed);return parsed}}catch{}
-    const chunks=[];for(let y=range.start;y<=range.end;y+=4)chunks.push([y,Math.min(range.end,y+3)]);
-    const results=await Promise.allSettled(chunks.map(([a,b])=>fetchJsonRetry(archiveURL(loc,a,b),2)));
-    const merged=emptyHistoryDaily();let failedChunks=0,successChunks=0,firstError=null;
-    results.forEach(result=>{if(result.status==='fulfilled'){appendHistoryDaily(merged,result.value.daily);successChunks++}else{failedChunks++;if(!firstError)firstError=result.reason}});
-    if(!successChunks)throw firstError||new Error('歷史資料暫時無法取得。');
-    const packed={range,daily:merged,partial:failedChunks>0};
-    historyCache.set(key,packed);try{sessionStorage.setItem(storageKey,JSON.stringify(packed))}catch{}
-    return packed;
-  }
-  function validNumber(v){return Number.isFinite(Number(v))?Number(v):null}
-  function buildDailyMap(daily){const map=new Map();(daily.time||[]).forEach((date,i)=>map.set(date,{high:validNumber(daily.temperature_2m_max?.[i]),low:validNumber(daily.temperature_2m_min?.[i]),rain:validNumber(daily.rain_sum?.[i])}));return map}
-  function calcForTargetDate(targetISO,map){
-    const y=Number(targetISO.slice(0,4)),md=targetISO.slice(5),last=map.get(`${y-1}-${md}`)||{},rains=[];
-    for(let n=1;n<=10;n++){const yy=y-n;if(yy<ARCHIVE_MIN_YEAR)continue;const item=map.get(`${yy}-${md}`);if(item&&item.rain!==null&&item.rain!==undefined)rains.push(Number(item.rain))}
-    return {high:validNumber(last.high),low:validNumber(last.low),rainRate:rains.length?Math.round(rains.filter(v=>v>0.1).length/rains.length*100):null,rainSamples:rains.length,lastYear:y-1,rainStart:Math.max(ARCHIVE_MIN_YEAR,y-10),rainEnd:y-1};
-  }
-  function fillCell(cell,value,type,suffix){cell.className=`history-value ${type}`;cell.textContent=value===null?'—':`${type==='rain'?Math.round(value):Number(value).toFixed(1)}${suffix}`}
-  async function loadHistoricalColumns(loc,force=false){
-    ensureHistoryUI();
-    if(!loc||!Number.isFinite(Number(loc.latitude))||!Number.isFinite(Number(loc.longitude))){setHistoryNote('歷史資料未載入：目前地點缺少有效座標。','error');return}
-    const dates=requestedDates();if(!dates.length){setHistoryNote('歷史資料未載入：查詢日期無效。','error');return}
-    const requestId=++historyRequestId;const rows=ensureHistoryCells();
-    rows.forEach(row=>{for(let i=6;i<9;i++){row.cells[i].className='history-loading';row.cells[i].textContent='…';row.cells[i].title='正在載入歷史資料'}});
-    setHistoryNote('歷史資料載入中…','loading');
-    try{
-      const packed=await fetchHistorical(loc,dates,force);if(requestId!==historyRequestId)return;
-      const map=buildDailyMap(packed.daily),freshRows=ensureHistoryCells();
-      freshRows.forEach((row,i)=>{
-        const date=dates[i];if(!date)return;const stats=calcForTargetDate(date,map);
-        fillCell(row.cells[6],stats.high,'high','°C');fillCell(row.cells[7],stats.low,'low','°C');fillCell(row.cells[8],stats.rainRate,'rain','%');
-        row.cells[6].title=stats.lastYear<ARCHIVE_MIN_YEAR?'1940 年以前無歷史資料':`${stats.lastYear} 同月同日最高溫`;
-        row.cells[7].title=stats.lastYear<ARCHIVE_MIN_YEAR?'1940 年以前無歷史資料':`${stats.lastYear} 同月同日最低溫`;
-        row.cells[8].title=`${stats.rainStart}–${stats.rainEnd} 同月同日，實際可用樣本 ${stats.rainSamples} 年${packed.partial?'（部分歷史資料載入失敗）':''}`;
-      });
-      setHistoryNote(`${BASE_NOTE} ${packed.partial?'部分年份載入成功':'歷史資料已載入'}（${packed.range.start}–${packed.range.end}）。`,packed.partial?'loading':'success',packed.partial?loc:null);
-    }catch(err){
-      if(requestId!==historyRequestId)return;
-      ensureHistoryCells().forEach(row=>{for(let i=6;i<9;i++){row.cells[i].className='history-loading';row.cells[i].textContent='—';row.cells[i].title=err.message||'歷史資料載入失敗'}});
-      setHistoryNote(`歷史資料載入失敗：${err?.message||'無法連線至歷史資料服務。'}`, 'error', loc);
+  function appendHistoryDaily(target,source){
+    for(let i=0;i<source.time.length;i++){
+      target.time.push(source.time[i]);
+      for(const field of ['temperature_2m_max','temperature_2m_min','rain_sum'])target[field].push(validNumber(source[field]?.[i]));
     }
   }
-  renderWeather=function(loc,data){const result=originalRenderWeather(loc,data);ensureHistoryUI();loadHistoricalColumns(loc);return result};
-  ensureHistoryUI();if(typeof currentLocation!=='undefined'&&currentLocation&&document.getElementById('results')?.classList.contains('show'))loadHistoricalColumns(currentLocation);
+  function completeDaily(daily,start,end){
+    if(!Array.isArray(daily?.time))return false;
+    const expected=enumerateHistoryDates(start,end);
+    return expected.length===daily.time.length&&expected.every((date,i)=>date===daily.time[i]&&
+      ['temperature_2m_max','temperature_2m_min','rain_sum'].every(field=>validNumber(daily[field]?.[i])!==null));
+  }
+  function cachedChunk(key,start,end){
+    let value=historyCache.get(key);
+    if(!value){try{value=JSON.parse(sessionStorage.getItem(key)||'null')}catch{}}
+    if(!value||!Number.isFinite(value.savedAt)||Date.now()-value.savedAt<0||Date.now()-value.savedAt>CACHE_TTL||
+      !completeDaily(value.daily,start,end)){
+      historyCache.delete(key);try{sessionStorage.removeItem(key)}catch{}return null;
+    }
+    historyCache.set(key,value);return value;
+  }
+  async function fetchHistorical(loc,dates,{force=false,signal}={}){
+    const range=historyRange(dates),chunks=[];
+    const yesterday=new Date();yesterday.setDate(yesterday.getDate()-1);const latest=localISO(yesterday);
+    for(let year=range.start;year<=range.end;year+=4){
+      const start=`${year}-01-01`,end=[`${Math.min(range.end,year+3)}-12-31`,latest].sort()[0];
+      if(start<=end)chunks.push({start,end});
+    }
+    if(!chunks.length)return{range,daily:emptyHistoryDaily(),partial:false,unavailable:true};
+    const parts=new Array(chunks.length);let next=0;
+    async function worker(){
+      while(next<chunks.length){
+        WeatherRequests.check(signal);
+        const index=next++,{start,end}=chunks[index],key=cacheKey(loc,start,end);
+        if(force){historyCache.delete(key);try{sessionStorage.removeItem(key)}catch{}}
+        const cached=cachedChunk(key,start,end);
+        if(cached){parts[index]={...cached,complete:true};continue}
+        const url=`https://archive-api.open-meteo.com/v1/archive?latitude=${encodeURIComponent(loc.latitude)}&longitude=${encodeURIComponent(loc.longitude)}&start_date=${start}&end_date=${end}&daily=temperature_2m_max,temperature_2m_min,rain_sum&timezone=auto`;
+        try{
+          const data=await WeatherRequests.json(url,{signal});
+          WeatherRequests.check(signal);
+          if(!Array.isArray(data?.daily?.time)||!data.daily.time.length)throw new Error('服務未回傳逐日歷史資料。');
+          const complete=completeDaily(data.daily,start,end);
+          const entry={daily:data.daily,savedAt:Date.now()};
+          parts[index]={...entry,complete};
+          // Only complete responses are reusable; partial years must be retried next time.
+          if(complete){historyCache.set(key,entry);try{sessionStorage.setItem(key,JSON.stringify(entry))}catch{}}
+        }catch(error){
+          WeatherRequests.check(signal);
+          parts[index]={error:error.message||'歷史資料載入失敗'};
+        }
+      }
+    }
+    await Promise.all([worker(),worker()]);
+    WeatherRequests.check(signal);
+    const merged=emptyHistoryDaily(),errors=[];let partial=false,success=0;
+    for(const part of parts){
+      if(part?.daily){appendHistoryDaily(merged,part.daily);success++;if(!part.complete)partial=true}
+      else{partial=true;errors.push(part?.error||'歷史資料載入失敗')}
+    }
+    if(!success)throw new Error([...new Set(errors)].join(' '));
+    return{range,daily:merged,partial,errors:[...new Set(errors)]};
+  }
+  function buildDailyMap(daily){
+    const map=new Map();(daily.time||[]).forEach((date,i)=>map.set(date,{
+      high:validNumber(daily.temperature_2m_max?.[i]),low:validNumber(daily.temperature_2m_min?.[i]),rain:validNumber(daily.rain_sum?.[i])
+    }));return map;
+  }
+  function calcForTargetDate(targetISO,map){
+    const year=Number(targetISO.slice(0,4)),md=targetISO.slice(5),last=map.get(`${year-1}-${md}`)||{},rains=[];
+    for(let n=1;n<=10;n++){
+      if(year-n<ARCHIVE_MIN_YEAR)continue;
+      const rain=validNumber(map.get(`${year-n}-${md}`)?.rain);
+      if(rain!==null)rains.push(rain);
+    }
+    return{high:validNumber(last.high),low:validNumber(last.low),
+      rainRate:rains.length?Math.round(rains.filter(v=>v>0.1).length/rains.length*100):null,
+      rainSamples:rains.length,lastYear:year-1,rainStart:Math.max(ARCHIVE_MIN_YEAR,year-10),rainEnd:year-1};
+  }
+  function fillCell(cell,value,type,suffix){
+    cell.className=`history-value ${type}`;cell.textContent=value===null?'—':`${type==='rain'?Math.round(value):value.toFixed(1)}${suffix}`;
+  }
+  async function loadHistoricalColumns(loc,request,force=false){
+    historyController?.abort();historyController=new AbortController();
+    const signal=historyController.signal,requestId=++historyRequestId;
+    ensureHistoryUI();
+    if(!loc||validNumber(Number(loc.latitude))===null||validNumber(Number(loc.longitude))===null){
+      setHistoryNote('歷史資料未載入：目前地點缺少有效座標。','error');return;
+    }
+    const dates=requestedDates(request);
+    if(!dates.length){setHistoryNote('歷史資料未載入：查詢日期無效。','error');return}
+    const retry=(label,refresh)=>({label,run:()=>loadHistoricalColumns(loc,request,refresh)});
+    const rows=ensureHistoryCells();
+    rows.forEach(row=>{for(let i=6;i<9;i++){row.cells[i].className='history-loading';row.cells[i].textContent='…';row.cells[i].title='正在載入歷史資料'}});
+    setHistoryNote(force?'正在重新取得歷史資料…':'歷史資料載入中…','loading');
+    try{
+      const packed=await fetchHistorical(loc,dates,{force,signal});
+      if(requestId!==historyRequestId||signal.aborted)return;
+      const map=buildDailyMap(packed.daily);
+      ensureHistoryCells().forEach((row,i)=>{
+        if(!dates[i])return;const stats=calcForTargetDate(dates[i],map);
+        fillCell(row.cells[6],stats.high,'high','°C');fillCell(row.cells[7],stats.low,'low','°C');fillCell(row.cells[8],stats.rainRate,'rain','%');
+        row.cells[6].title=`${stats.lastYear} 同月同日最高溫`;row.cells[7].title=`${stats.lastYear} 同月同日最低溫`;
+        row.cells[8].title=`${stats.rainStart}–${stats.rainEnd} 同月同日，實際可用樣本 ${stats.rainSamples} 年；缺值不計入統計`;
+      });
+      if(packed.unavailable){setHistoryNote(BASE_NOTE+' 此期間尚無可用的歷史參考資料。');return}
+      const message=packed.partial?
+        '部分年份或欄位尚未取得；已保留可用資料，可補抓缺漏資料。'+(packed.errors?.length?' 原因：'+packed.errors.join(' '):''):
+        `歷史資料已載入（${packed.range.start}–${packed.range.end}）；缺值以「—」顯示。`;
+      setHistoryNote(BASE_NOTE+' '+message,packed.partial?'info':'success',
+        retry(packed.partial?'補抓缺漏資料':'更新歷史資料',!packed.partial));
+    }catch(error){
+      if(requestId!==historyRequestId||signal.aborted)return;
+      ensureHistoryCells().forEach(row=>{for(let i=6;i<9;i++){row.cells[i].className='history-loading';row.cells[i].textContent='—';row.cells[i].title=error.message}});
+      setHistoryNote('歷史資料載入失敗：'+(error.message||'無法連線至歷史資料服務。'),'error',retry('重試',false));
+    }
+  }
+  window.addEventListener('weather-query-start',()=>{
+    historyRequestId++;historyController?.abort();
+    const note=document.getElementById('historyWeatherNote');
+    if(note){note.textContent='等待新的查詢結果…';note.dataset.historyStatus='loading'}
+  });
+  renderWeather=function(loc,data){
+    const result=originalRenderWeather(loc,data);
+    const request={...(data._requested||{start:startInput.value,end:endInput.value})};
+    loadHistoricalColumns({...loc},request);return result;
+  };
+  ensureHistoryUI();
+  // A restored shared query can finish before this deferred file arrives.
+  if(typeof currentLocation!=='undefined'&&currentLocation&&renderedQueryState&&document.getElementById('results')?.classList.contains('show')){
+    loadHistoricalColumns({...currentLocation},{...renderedQueryState});
+  }
 })();

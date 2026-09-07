@@ -10,25 +10,6 @@
   function isoAddDays(iso,days){const d=new Date(`${iso}T12:00:00`);d.setDate(d.getDate()+days);return localISO(d)}
   function minISO(a,b){return a<b?a:b}
   function maxISO(a,b){return a>b?a:b}
-  function sleep(ms){return new Promise(resolve=>setTimeout(resolve,ms))}
-  async function getJson(url,attempts=3){
-    let lastError=null;
-    for(let attempt=1;attempt<=attempts;attempt++){
-      const controller=typeof AbortController!=='undefined'?new AbortController():null;
-      const timer=controller?setTimeout(()=>controller.abort(),15000):null;
-      try{
-        const response=await fetch(url,{cache:'no-store',signal:controller?.signal});
-        if(timer)clearTimeout(timer);
-        if(!response.ok){const body=await response.json().catch(()=>({}));throw new Error(body.reason||`天氣服務回應 ${response.status}`)}
-        return await response.json();
-      }catch(err){
-        if(timer)clearTimeout(timer);
-        lastError=err;
-        if(attempt<attempts)await sleep(450*attempt);
-      }
-    }
-    throw lastError||new Error('天氣服務暫時無法取得資料。');
-  }
   function emptyDaily(){return{time:[],temperature_2m_max:[],temperature_2m_min:[],precipitation_probability_max:[],sunrise:[],sunset:[]}}
   function appendDaily(target,source,archive=false){const times=source?.time||[];for(let i=0;i<times.length;i++){
     target.time.push(times[i]);
@@ -40,10 +21,20 @@
   }}
   function sortDaily(daily){const order=daily.time.map((d,i)=>[d,i]).sort((a,b)=>a[0].localeCompare(b[0]));const out=emptyDaily();for(const [,i] of order){out.time.push(daily.time[i]);out.temperature_2m_max.push(daily.temperature_2m_max[i]);out.temperature_2m_min.push(daily.temperature_2m_min[i]);out.precipitation_probability_max.push(daily.precipitation_probability_max[i]);out.sunrise.push(daily.sunrise[i]);out.sunset.push(daily.sunset[i])}return out}
 
-  fetchWeather=async function(loc){
-    const requestedStart=startInput.value,requestedEnd=endInput.value;
-    const todayISO=localISO(today),forecastEndISO=localISO(maxDate),yesterdayISO=isoAddDays(todayISO,-1);
+  fetchWeather=async function(loc,query={}){
+    const requestedStart=query.start||startInput.value,requestedEnd=query.end||endInput.value;
+    const warnings=[];const signal=query.signal;
+    const getJson=(url,attempts=2)=>WeatherRequests.json(url,{signal,attempts});
+    const now=new Date();const horizon=new Date(now);horizon.setDate(horizon.getDate()+15);
+    const todayISO=localISO(now),forecastEndISO=localISO(horizon),yesterdayISO=isoAddDays(todayISO,-1);
     const daily=emptyDaily();let timezone=loc.timezone||'auto',timezone_abbreviation='',partial=false;
+    let requestedSegments=0,successfulSegments=0;
+    function record(data,archive=false){
+      if(!Array.isArray(data?.daily?.time)||!data.daily.time.length)throw new Error('服務未回傳此期間的逐日資料。');
+      successfulSegments++;timezone=data.timezone||timezone;timezone_abbreviation=data.timezone_abbreviation||timezone_abbreviation;appendDaily(daily,data.daily,archive);
+      if(data.daily.time.some((_,i)=>data.daily.temperature_2m_max?.[i]==null||data.daily.temperature_2m_min?.[i]==null)){partial=true;warnings.push('部分日期的溫度尚無資料，以「—」顯示。')}
+    }
+    function failed(err,label){WeatherRequests.check(signal);partial=true;warnings.push(`${label}：${err.message||'無法取得資料'}`)}
 
     if(requestedStart<=yesterdayISO){
       const pastEnd=minISO(requestedEnd,yesterdayISO);
@@ -51,17 +42,18 @@
         const archiveEnd=minISO(pastEnd,'2021-12-31');
         if(requestedStart<=archiveEnd){
           const url=`https://archive-api.open-meteo.com/v1/archive?latitude=${encodeURIComponent(loc.latitude)}&longitude=${encodeURIComponent(loc.longitude)}&daily=${ARCHIVE_DAILY}&timezone=auto&start_date=${requestedStart}&end_date=${archiveEnd}`;
-          try{const data=await getJson(url);timezone=data.timezone||timezone;timezone_abbreviation=data.timezone_abbreviation||timezone_abbreviation;appendDaily(daily,data.daily,true)}catch(err){partial=true}
+          requestedSegments++;try{record(await getJson(url),true)}catch(err){failed(err,'歷史天氣載入失敗')}
         }
       }
       const hfStart=maxISO(requestedStart,HISTORICAL_FORECAST_START);
       if(hfStart<=pastEnd){
         const hfUrl=`https://historical-forecast-api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(loc.latitude)}&longitude=${encodeURIComponent(loc.longitude)}&daily=${FORECAST_DAILY}&timezone=auto&start_date=${hfStart}&end_date=${pastEnd}`;
-        try{
-          const data=await getJson(hfUrl);timezone=data.timezone||timezone;timezone_abbreviation=data.timezone_abbreviation||timezone_abbreviation;appendDaily(daily,data.daily,false);
+        requestedSegments++;try{
+          record(await getJson(hfUrl));
         }catch(hfErr){
+          WeatherRequests.check(signal);
           const fallbackUrl=`https://archive-api.open-meteo.com/v1/archive?latitude=${encodeURIComponent(loc.latitude)}&longitude=${encodeURIComponent(loc.longitude)}&daily=${ARCHIVE_DAILY}&timezone=auto&start_date=${hfStart}&end_date=${pastEnd}`;
-          try{const data=await getJson(fallbackUrl,2);timezone=data.timezone||timezone;timezone_abbreviation=data.timezone_abbreviation||timezone_abbreviation;appendDaily(daily,data.daily,true);partial=true}catch(archiveErr){partial=true}
+          try{record(await getJson(fallbackUrl),true);partial=true;warnings.push('歷史預報暫時無法取得，已改用歷史天氣；此資料源不提供降雨機率。')}catch(archiveErr){failed(archiveErr,'歷史天氣及備援來源均載入失敗')}
         }
       }
     }
@@ -70,11 +62,14 @@
       const forecastStart=maxISO(requestedStart,todayISO),forecastEnd=minISO(requestedEnd,forecastEndISO);
       if(forecastStart<=forecastEnd){
         const url=`https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(loc.latitude)}&longitude=${encodeURIComponent(loc.longitude)}&daily=${FORECAST_DAILY}&timezone=auto&start_date=${forecastStart}&end_date=${forecastEnd}`;
-        try{const data=await getJson(url);timezone=data.timezone||timezone;timezone_abbreviation=data.timezone_abbreviation||timezone_abbreviation;appendDaily(daily,data.daily,false)}catch(err){partial=true}
+        requestedSegments++;try{record(await getJson(url))}catch(err){failed(err,'天氣預報載入失敗')}
       }
     }
 
+    WeatherRequests.check(signal);
+    if(requestedSegments&&!successfulSegments)throw new Error(warnings.join(' ')||'天氣資料載入失敗，請重試。');
+    if(requestedEnd>forecastEndISO)warnings.push(`超出預報範圍的日期尚無天氣資料，目前可查至 ${forecastEndISO}。`);
     const sorted=sortDaily(daily);
-    return{daily:sorted,timezone,timezone_abbreviation,_requested:{start:requestedStart,end:requestedEnd},_available:{start:'1940-01-01',end:forecastEndISO},_partial:partial||requestedStart<'1940-01-01'||requestedEnd>forecastEndISO};
+    return{daily:sorted,_warnings:[...new Set(warnings)],timezone,timezone_abbreviation,_requested:{start:requestedStart,end:requestedEnd},_available:{start:'1940-01-01',end:forecastEndISO},_partial:partial||requestedStart<'1940-01-01'||requestedEnd>forecastEndISO};
   };
 })();

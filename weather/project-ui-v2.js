@@ -30,15 +30,31 @@
     if(!p||!Array.isArray(p.teams?.[team]))return;
     const x=p.teams[team].find(v=>String(v.id)===String(id));
     if(!x)return;
-    const original=String(x.label||x.city||'');
-    const entered=window.prompt('重新輸入地點名稱：',original);
-    if(entered===null)return;
-    const name=entered.trim();
-    if(!name){setStatus('地點名稱不可空白。','error');return}
-    x.label=name;
-    writeProjects();
-    renderProject();
-    setStatus(`地點名稱已改為「${name}」，原本座標不變。`,'info');
+    let dialog=document.getElementById('entryRenameDialog');
+    if(!dialog){
+      dialog=document.createElement('dialog');dialog.id='entryRenameDialog';dialog.className='entry-rename-dialog';
+      dialog.setAttribute('aria-labelledby','entryRenameTitle');
+      dialog.innerHTML='<form id="entryRenameForm"><h2 id="entryRenameTitle">修改地點名稱</h2><label for="entryRenameInput">地點名稱</label><input id="entryRenameInput" type="text" autocomplete="off" required><p class="entry-rename-note">修改名稱後，仍會查詢原本選取的位置。</p><p id="entryRenameError" class="entry-rename-error" role="alert"></p><div class="entry-rename-actions"><button type="button" class="project-btn" id="entryRenameCancel">取消</button><button type="submit" class="project-btn primary-lite">儲存名稱</button></div></form>';
+      document.body.appendChild(dialog);
+      dialog.querySelector('#entryRenameCancel').addEventListener('click',()=>dialog.close());
+    }
+    const input=dialog.querySelector('#entryRenameInput'),error=dialog.querySelector('#entryRenameError');
+    input.value=String(x.label||x.city||'');error.textContent='';
+    dialog.querySelector('form').onsubmit=event=>{
+      event.preventDefault();
+      const name=input.value.trim();
+      if(!name){error.textContent='請輸入地點名稱。';input.focus();return}
+      if(isReadonly||activeProject()!==p||!p.teams?.[team]?.includes(x)){
+        error.textContent='專案內容已變更，請關閉視窗後重新選取地點。';return;
+      }
+      const previous=x.label;x.label=name;
+      try{writeProjects()}catch(err){x.label=previous;error.textContent='名稱無法儲存，請確認瀏覽器儲存空間後重試。';return}
+      dialog.close();renderProject();
+      setStatus(`地點名稱已改為「${name}」。`,'info');
+      const button=[...projectGroups.querySelectorAll('[data-rename-id]')].find(b=>b.dataset.renameEntryTeam===team&&b.dataset.renameId===String(id));
+      button?.focus();
+    };
+    if(!dialog.open)dialog.showModal();input.focus();input.select();
   }
   function enableEntrySorting(p){
     if(isReadonly)return;

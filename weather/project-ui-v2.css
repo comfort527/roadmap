@@ -23,4 +23,15 @@
 .analysis-inline-text:focus{outline:none;border-color:#c891a0;box-shadow:0 0 0 3px rgba(180,110,130,.10)}
 .analysis-inline-note{margin-top:7px;text-align:right;font-size:12px;color:#8a737b}
 .readonly .share-tools{display:none!important}
+.entry-rename-dialog{width:min(440px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;box-sizing:border-box;margin:auto;padding:24px;border:1px solid #c7dae4;border-radius:16px;background:#fff;color:#294c60;box-shadow:0 20px 70px #17394f40}
+.entry-rename-dialog::backdrop{background:#16334866}
+.entry-rename-dialog h2{margin:0 0 20px;font-size:21px}
+.entry-rename-dialog label{display:block;margin-bottom:8px;font-size:14px;font-weight:700}
+.entry-rename-dialog input{box-sizing:border-box;width:100%;padding:12px;border:1px solid #b8ccd8;border-radius:9px;font:inherit;font-size:16px;color:#203e50}
+.entry-rename-dialog input:focus{outline:2px solid #2686af;outline-offset:2px}
+.entry-rename-note{font-size:13px;line-height:1.6;color:#607887;margin:12px 0}
+.entry-rename-error{font-size:13px;color:#a22d25;line-height:1.5;margin:0 0 12px}
+.entry-rename-error:empty{display:none}
+.entry-rename-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
+.entry-rename-actions .project-btn{min-height:42px;padding:8px 16px}
 @media(max-width:720px){.team-head{align-items:flex-start}.team-head-actions{justify-content:flex-start}.project-entry .entry-city{font-size:16px!important;line-height:1.18!important;font-weight:700!important;margin:0!important}.project-entry .entry-date{font-size:18px!important;line-height:1.18!important;font-weight:800!important;color:#000!important;margin-top:1px!important;margin-bottom:0!important}.entry-edit{width:30px;height:30px;min-width:30px}.analysis-inline-card{margin:8px;padding:9px}.analysis-inline-text{min-height:260px;max-height:60vh;padding:12px;font-size:15px}}
