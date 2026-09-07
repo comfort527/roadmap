@@ -1,8 +1,19 @@
 <!doctype html><html lang="zh-Hant-TW"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>專案天氣對照表</title></head><body><div id="loading" style="font:18px system-ui;padding:24px">載入中…</div><script>
-const SOURCE='https://raw.githubusercontent.com/comfort527/roadmap/04f5360540904222b7ca832ed70541217b950494/weather/cross-grid.html';
-function toBytes(b64){const s=atob(b64),a=new Uint8Array(s.length);for(let i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return a}
-async function nativeGunzip(bytes){if(typeof DecompressionStream==='undefined')throw new Error('no native decompressor');const ds=new DecompressionStream('gzip');const ab=await new Response(new Blob([bytes]).stream().pipeThrough(ds)).arrayBuffer();return new TextDecoder().decode(ab)}
-function loadPako(){return new Promise((ok,fail)=>{if(window.pako)return ok();const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js';s.onload=ok;s.onerror=()=>fail(new Error('backup decompressor unavailable'));document.head.appendChild(s)})}
-async function gunzip(bytes){try{return await nativeGunzip(bytes)}catch(first){await loadPako();return new TextDecoder().decode(window.pako.ungzip(bytes))}}
-(async()=>{try{const r=await fetch(SOURCE,{cache:'no-store'});if(!r.ok)throw new Error('source '+r.status);const t=await r.text();const m=t.match(/const P="([A-Za-z0-9+/=]+)";/);if(!m)throw new Error('packed source missing');const html=await gunzip(toBytes(m[1]));document.open();document.write(html);document.close()}catch(e){const n=document.getElementById('loading');n.textContent='網頁載入失敗：'+(e&&e.message?e.message:'未知錯誤')+'。請重新整理。';console.error(e)}})();
+(async()=>{
+  try{
+    const files=Array.from({length:6},(_,i)=>`./cross-grid-src/part${i+1}.txt?v=20260907b`);
+    const parts=await Promise.all(files.map(async url=>{
+      const r=await fetch(url,{cache:'no-store'});
+      if(!r.ok)throw new Error(`${url} ${r.status}`);
+      return r.text();
+    }));
+    const html=parts.join('');
+    if(!html.startsWith('<!doctype html>')||!html.includes('</html>'))throw new Error('原始網頁內容不完整');
+    document.open();document.write(html);document.close();
+  }catch(e){
+    const n=document.getElementById('loading');
+    if(n)n.textContent='網頁載入失敗：'+(e&&e.message?e.message:'來源檔讀取失敗')+'。請重新整理。';
+    console.error(e);
+  }
+})();
 </script></body></html>
