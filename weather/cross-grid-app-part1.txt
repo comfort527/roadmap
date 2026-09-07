@@ -1,0 +1,28 @@
+(async() => {
+  'use strict';
+  const $=id=>document.getElementById(id),core=MatrixCore,KEY='weatherCrossGridV1',uid=()=>{try{if(window.crypto&&typeof crypto.randomUUID==='function')return crypto.randomUUID()}catch(e){}return 'id-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)};
+  function bytesToB64u(bytes){let bin='';for(const b of bytes)bin+=String.fromCharCode(b);return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
+  function b64uToBytes(token){let s=token.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';const bin=atob(s);return Uint8Array.from(bin,c=>c.charCodeAt(0))}
+  function b64uEncode(text){return bytesToB64u(new TextEncoder().encode(text))}
+  function b64uDecode(token){return new TextDecoder().decode(b64uToBytes(token))}
+  async function compressShareText(text){return 'j.'+b64uEncode(text)}
+  async function decompressShareToken(token){if(token.startsWith('z.')){if(typeof DecompressionStream==='undefined')throw new Error('此瀏覽器不支援分享網址解壓縮');const ds=new DecompressionStream('deflate-raw');const stream=new Blob([b64uToBytes(token.slice(2))]).stream().pipeThrough(ds);return new TextDecoder().decode(await new Response(stream).arrayBuffer())}if(token.startsWith('j.'))return b64uDecode(token.slice(2));return b64uDecode(token)}
+  function compactShare(p){const columns=p.columns.map(c=>{const l=loc(c.locationId);return[l?.name||'',l?.english||'',l?.lat??null,l?.lon??null]}),rows=p.rows.map(r=>r.date),cells=p.rows.map(r=>p.columns.map(c=>{const v=p.colors?.[cellKey(r,c)];return v==='blue'?'b':v==='orange'?'o':'h'}));return{v:1,n:p.name||'分享專案',r:String(p.reportText||''),d:rows,l:columns,c:cells}}
+  function expandShare(data){if(!data||data.v!==1||!Array.isArray(data.d)||!Array.isArray(data.l)||!Array.isArray(data.c))throw new Error('分享資料格式錯誤');const locations=data.l.map((a,i)=>({id:i===0?'taipei':uid(),name:String(a?.[0]||''),english:String(a?.[1]||''),lat:Number(a?.[2]),lon:Number(a?.[3])}));if(!locations.length)throw new Error('分享資料沒有地點');const columns=locations.map(l=>({id:uid(),locationId:l.id})),rows=data.d.map(date=>({id:uid(),date:String(date)})),colors={};rows.forEach((r,ri)=>columns.forEach((c,ci)=>{const v=data.c?.[ri]?.[ci];colors[cellKey(r,c)]=v==='b'?'blue':v==='o'?'orange':'hidden'}));const project={id:uid(),name:String(data.n||'分享專案'),columns,rows,colors,reportText:String(data.r||'')};return{project,locations}}
+  async function shareFromHash(){const token=new URLSearchParams(location.hash.slice(1)).get('share');if(!token)return null;return expandShare(JSON.parse(await decompressShareToken(token)))}
+  const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+  const initial=[{id:'taipei',name:'臺北',english:'Taipei',lat:25.033,lon:121.5654},{id:'como',name:'科莫',english:'Como',lat:45.8081,lon:9.0852},{id:'bellagio',name:'貝拉焦',english:'Bellagio',lat:45.9875,lon:9.2615},{id:'roma',name:'羅馬',english:'Roma',lat:41.8933,lon:12.4829},{id:'tokyo',name:'東京',english:'Tokyo',lat:35.6762,lon:139.6503}];
+  function fresh(name){return{id:uid(),name,columns:initial.slice(0,4).map(c=>({id:uid(),locationId:c.id})),rows:Array.from({length:10},(_,i)=>({id:uid(),date:core.shift(today(),i)})),colors:{}}}
+  const sharedNode=$('sharedProject');let shared=null;try{shared=(await shareFromHash())||(sharedNode?JSON.parse(sharedNode.textContent):null)}catch(e){document.documentElement.dataset.readonly='true';$('readonlyView').classList.add('share-error');$('readonlyTitle').textContent='分享專案無法載入';$('readonlyReport').hidden=false;$('readonlyReportText').textContent='分享連結可能不完整或已損壞，請請分享者重新產生分享網址。';return}const readonly=!!shared;
+  let state;try{state=readonly?{projects:[shared.project],activeId:shared.project.id,locations:shared.locations,textSize:'large'}:JSON.parse(localStorage.getItem(KEY))}catch{}if(!state||!Array.isArray(state.projects)||!state.projects.length||!Array.isArray(state.locations)){const p=fresh('專案國外天氣');state={projects:[p],activeId:p.id,locations:initial,textSize:'large'}}
+  let generation=0,controller=null,lastAttempt=0,placeTarget=null,dateTarget=null,nameMode='new',searchGeneration=0,searchController=null;const cache=new Map(),referenceCache=new Map();
+  const project=()=>state.projects.find(p=>p.id===state.activeId)||state.projects[0],loc=id=>state.locations.find(l=>l.id===id),cellKey=(r,c)=>r.id+'|'+c.id;
+  function sequence(p,start=p.rows[0].date){p.rows.forEach((r,i)=>r.date=core.shift(start,i))}
+  state.projects.forEach(p=>sequence(p));
+  function save(){if(readonly)return;try{localStorage.setItem(KEY,JSON.stringify(state))}catch{$('status').textContent='瀏覽器無法儲存，請匯出專案備份。'}}
+  function el(tag,text,cls){const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n}
+  function opt(value,text){const n=el('option',text);n.value=value;return n}
+  function short(date){const [,m,d]=date.split('-');return Number(m)+'/'+Number(d)}
+  function renderReport(){const p=project(),text=String(p.reportText||'').trim();$('reportLink').hidden=!text;$('editReport').textContent=text?'修改分析報告':'貼上分析報告';if(readonly){$('readonlyTitle').textContent=p.name||'分享專案';$('readonlyReport').hidden=!text;$('readonlyReportText').textContent=text}}
+  function ensureTaipei(p){let t=state.locations.find(l=>l.id==='taipei');if(!t){t={...initial[0]};state.locations.unshift(t)}else Object.assign(t,initial[0]);if(p.columns[0]?.locationId!=='taipei'){const existing=p.columns.findIndex(c=>c.locationId==='taipei');if(existing>=0){const [col]=p.columns.splice(existing,1);p.columns.unshift(col)}else p.columns.unshift({id:uid(),locationId:'taipei'})}}
+  state.p
