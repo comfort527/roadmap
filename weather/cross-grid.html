@@ -1,19 +1,18 @@
-<!doctype html><html lang="zh-Hant-TW"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>專案天氣對照表</title></head><body><div id="loading" style="font:18px system-ui;padding:24px">載入中…</div><script>
-(async()=>{
+<!doctype html><html lang="zh-Hant-TW"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>專案天氣對照表</title></head><body><script>
+(function(){
   try{
-    const files=Array.from({length:6},(_,i)=>`./cross-grid-src/part${i+1}.txt?v=20260907c`);
-    const parts=await Promise.all(files.map(async url=>{
-      const r=await fetch(url,{cache:'no-store'});
-      if(!r.ok)throw new Error(`${url} ${r.status}`);
-      return r.text();
-    }));
-    const html=parts.join('');
-    if(!html.startsWith('<!doctype html>')||!html.includes('</html>'))throw new Error('原始網頁內容不完整');
-    document.open();document.write(html);document.close();
+    var html='';
+    for(var i=1;i<=6;i++){
+      var xhr=new XMLHttpRequest();
+      xhr.open('GET','./cross-grid-src/part'+i+'.txt?v=20260907d',false);
+      xhr.send(null);
+      if(xhr.status<200||xhr.status>=300)throw new Error('part'+i+' '+xhr.status);
+      html+=xhr.responseText;
+    }
+    html=html.replace('</head>','<style>html[data-readonly=true] #addCol,html[data-readonly=true] #addRow{display:none!important}</style></head>');
+    document.write(html);
   }catch(e){
-    const n=document.getElementById('loading');
-    if(n)n.textContent='網頁載入失敗：'+(e&&e.message?e.message:'來源檔讀取失敗')+'。請重新整理。';
-    console.error(e);
+    document.write('<main style="font:18px system-ui;padding:24px">網頁載入失敗：'+String(e&&e.message||e)+'</main>');
   }
 })();
 </script></body></html>
