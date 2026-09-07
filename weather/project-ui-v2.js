@@ -24,6 +24,22 @@
     textarea.focus();
     textarea.scrollIntoView({behavior:'smooth',block:'nearest'});
   }
+  function renameProjectEntry(team,id){
+    if(isReadonly)return;
+    const p=activeProject();
+    if(!p||!Array.isArray(p.teams?.[team]))return;
+    const x=p.teams[team].find(v=>String(v.id)===String(id));
+    if(!x)return;
+    const original=String(x.label||x.city||'');
+    const entered=window.prompt('重新輸入地點名稱：',original);
+    if(entered===null)return;
+    const name=entered.trim();
+    if(!name){setStatus('地點名稱不可空白。','error');return}
+    x.label=name;
+    writeProjects();
+    renderProject();
+    setStatus(`地點名稱已改為「${name}」，原本座標不變。`,'info');
+  }
   function enableEntrySorting(p){
     if(isReadonly)return;
     projectGroups.querySelectorAll('.team-list').forEach(list=>{
@@ -33,6 +49,7 @@
       list.querySelectorAll('.project-entry[data-sort-id]').forEach(row=>{
         row.draggable=true;
         row.addEventListener('dragstart',e=>{
+          if(e.target.closest('.entry-edit,.entry-remove')){e.preventDefault();return}
           dragging=row;
           row.classList.add('is-dragging');
           if(e.dataTransfer){e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',row.dataset.sortId||'')}
@@ -71,11 +88,12 @@
       const removeTeamBtn=(!isReadonly&&team!=='本隊')?`<button class="team-remove owner-only" type="button" data-remove-team-block="${team}">刪除${team}</button>`:'';
       const reportBtn=(team==='本隊'&&(!isReadonly||p.analysisReport))?`<button class="analysis-report-btn${isReadonly?'':' owner-only'}" type="button" data-analysis-open>綜合分析報告</button>`:'';
       const toggleBtn=`<button class="team-toggle" type="button" data-team-toggle="${team}" aria-expanded="${!isCollapsed}">${isCollapsed?'展開':'收合'}</button>`;
-      const list=items.length?items.map(x=>`<div class="project-entry${isReadonly?'':' sortable'}" data-sort-id="${escapeAttr(x.id)}"><button class="entry-main" type="button" data-open-team="${team}" data-open-id="${escapeAttr(x.id)}"><div class="entry-city">${escapeHTML(x.label||x.city)}</div><div class="entry-date">${escapeHTML(x.start)} ～ ${escapeHTML(x.end)}</div></button><button class="entry-remove owner-only" type="button" data-remove-entry-team="${team}" data-remove-id="${escapeAttr(x.id)}" title="刪除城市">×</button></div>`).join(''):'<div class="team-empty">尚未加入城市</div>';
+      const list=items.length?items.map(x=>`<div class="project-entry${isReadonly?'':' sortable'}" data-sort-id="${escapeAttr(x.id)}"><button class="entry-main" type="button" data-open-team="${team}" data-open-id="${escapeAttr(x.id)}"><div class="entry-city">${escapeHTML(x.label||x.city)}</div><div class="entry-date">${escapeHTML(x.start)} ～ ${escapeHTML(x.end)}</div></button><button class="entry-edit owner-only" type="button" data-rename-entry-team="${team}" data-rename-id="${escapeAttr(x.id)}" title="修改地點名稱" aria-label="修改地點名稱">✎</button><button class="entry-remove owner-only" type="button" data-remove-entry-team="${team}" data-remove-id="${escapeAttr(x.id)}" title="刪除城市">×</button></div>`).join(''):'<div class="team-empty">尚未加入城市</div>';
       const editor=(team==='本隊'&&!isReadonly)?`<div class="analysis-inline-card" data-analysis-editor-card hidden><div class="analysis-inline-head"><strong>綜合分析報告</strong><button type="button" class="analysis-inline-close" data-analysis-inline-close>收合</button></div><textarea class="analysis-inline-text" data-analysis-inline-text placeholder="可直接在這裡輸入或貼上綜合分析報告…">${escapeHTML(p.analysisReport||'')}</textarea><div class="analysis-inline-note" data-analysis-inline-note>內容會自動儲存。</div></div>`:'';
       return `<div class="team-card${isCollapsed?' is-collapsed':''}" data-team-card="${team}"><div class="team-head"><h3>${team}</h3><div class="team-head-actions"><span class="team-count">${items.length} 個城市</span>${reportBtn}${toggleBtn}${removeTeamBtn}</div></div><div class="team-list">${list}</div>${editor}</div>`;
     }).join('');
     projectGroups.querySelectorAll('[data-open-id]').forEach(b=>b.addEventListener('click',()=>openProjectEntry(b.dataset.openTeam,b.dataset.openId)));
+    projectGroups.querySelectorAll('[data-rename-id]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();renameProjectEntry(b.dataset.renameEntryTeam,b.dataset.renameId)}));
     projectGroups.querySelectorAll('[data-remove-id]').forEach(b=>b.addEventListener('click',()=>removeProjectEntry(b.dataset.removeEntryTeam,b.dataset.removeId)));
     projectGroups.querySelectorAll('[data-remove-team-block]').forEach(b=>b.addEventListener('click',()=>removeTeam(b.dataset.removeTeamBlock)));
     projectGroups.querySelectorAll('[data-team-toggle]').forEach(btn=>btn.addEventListener('click',()=>{const team=btn.dataset.teamToggle,card=btn.closest('[data-team-card]'),nowCollapsed=!card.classList.contains('is-collapsed');card.classList.toggle('is-collapsed',nowCollapsed);btn.textContent=nowCollapsed?'展開':'收合';btn.setAttribute('aria-expanded',String(!nowCollapsed));const state=readCollapsed();state[collapseId(p.id,team)]=nowCollapsed;writeCollapsed(state)}));
