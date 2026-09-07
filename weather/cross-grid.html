@@ -1,18 +1,18 @@
-<!doctype html><html lang="zh-Hant-TW"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>專案天氣對照表</title></head><body><script>
-(function(){
-  try{
-    var html='';
-    for(var i=1;i<=6;i++){
-      var xhr=new XMLHttpRequest();
-      xhr.open('GET','./cross-grid-src/part'+i+'.txt?v=20260907d',false);
-      xhr.send(null);
-      if(xhr.status<200||xhr.status>=300)throw new Error('part'+i+' '+xhr.status);
-      html+=xhr.responseText;
-    }
-    html=html.replace('</head>','<style>html[data-readonly=true] #addCol,html[data-readonly=true] #addRow{display:none!important}</style></head>');
-    document.write(html);
-  }catch(e){
-    document.write('<main style="font:18px system-ui;padding:24px">網頁載入失敗：'+String(e&&e.message||e)+'</main>');
-  }
-})();
-</script></body></html>
+<!doctype html><html lang="zh-Hant-TW"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>專案天氣對照表</title><link rel="stylesheet" href="./cross-grid.css?v=20260907f"></head><body><main>
+<section id="readonlyView" aria-label="唯讀分享專案"><h1 id="readonlyTitle"></h1><section id="readonlyReport" hidden><h2>分析報告</h2><div id="readonlyReportText"></div></section></section>
+<header><h1>專案天氣對照表</h1><label>文字大小<select id="size"><option value="large">大字</option><option value="standard">標準</option></select></label></header>
+<p id="readonlyNotice" hidden>唯讀分享：可查看天氣與分析報告，專案內容不可編輯。</p><div class="toolbar"><label class="project">專案<select id="projects"></select></label><button id="new">建立專案</button><button id="rename">更改名稱</button><button id="refresh" class="primary">更新天氣</button><button id="share">分享專案（唯讀網址）</button><button id="export">匯出專案</button><button id="import">匯入專案</button><input id="file" type="file" accept=".json,application/json" hidden></div>
+<p class="instruction">第一欄固定臺北，其他欄可選地點；左側第一列選起始日期，後續依列數自動逐日順延。每格可選先遣、本隊或不顯示。</p>
+<div class="table-tools"><h2 id="title"></h2><div><button id="addCol">＋ 地點欄</button><button id="addRow">＋ 日期列</button><button id="print">列印</button></div></div>
+<div class="report-bar"><button id="reportLink" type="button" hidden>開啟分析報告</button><button id="editReport" type="button">貼上分析報告</button></div><p id="status" role="status" aria-live="polite">準備查詢…</p><div class="scroll" role="region" aria-label="日期與地點天氣對照表" tabindex="0"><table id="grid"><thead></thead><tbody></tbody></table></div>
+<p class="legend"><span><i class="blue"></i>藍色：先遣</span><span><i class="orange"></i>橘色：本隊</span>選「不顯示」時，該格資訊全部隱藏。</p>
+<p class="note">溫度：最低／最高 °C。降雨：當日最高降雨機率。日出日落均為目的地當地時間。歷史日期改列降水量；最近 6 天優先使用近期資料來源，較早日期使用歷史資料庫。尚未進入預報範圍時，顯示去年同月同日溫度與日出日落，並標示「未進入預報日期，歷史資料參考」。時間依序為日出／日落。</p>
+<p class="note">開啟及每 30 分鐘自動更新。<span class="owner-storage">專案、地點、日期與底色儲存在此瀏覽器。</span><a href="https://open-meteo.com/" target="_blank" rel="noopener">資料來源：Open-Meteo</a></p><p class="note">十年同期降雨率：最近十個完整年度的同月同日，降雨量大於 0.1 mm 的有效年份比例；缺漏資料不算無雨。閏日僅計有效年份，並顯示樣本數。</p><p class="note attribution">氣象資料來自 Open-Meteo，整合 ECMWF、NOAA、DWD、JMA、英國氣象局等國家級預報模型</p><p class="note mobile">表格隨日期列數向下延伸；手機橫向觀看可同時看到更多地點。</p></main>
+<dialog id="placeDialog"><form method="dialog" class="dialog-head"><h2>搜尋地點</h2><button>關閉</button></form><form id="search"><label for="query">城市或地區名稱</label><input id="query" type="search" placeholder="例如：東京、Paris" required><button class="primary">搜尋</button></form><p id="searchStatus" role="status"></p><div id="searchResults"></div></dialog>
+<dialog id="dateDialog"><form id="dateForm"><h2>選擇日期</h2><label for="date">日期</label><input id="date" type="date" min="1940-01-01" required><div class="actions"><button type="button" id="cancelDate">取消</button><button class="primary">套用日期</button></div></form></dialog>
+<dialog id="nameDialog"><form id="nameForm"><h2 id="nameTitle">建立專案</h2><label for="name">專案名稱</label><input id="name" maxlength="60" required><div class="actions"><button type="button" id="cancelName">取消</button><button class="primary">儲存</button></div></form></dialog>
+<dialog id="reportDialog"><form id="reportForm"><h2>分析報告</h2><label for="reportText">貼上分析報告文字</label><textarea id="reportText" rows="16" placeholder="請在此貼上分析報告內容…" style="width:100%;font:inherit;line-height:1.6;border:1px solid #7b8796;border-radius:8px;padding:12px;resize:vertical"></textarea><p class="note">內容會隨此專案儲存在瀏覽器中；清空內容可移除報告。</p><div class="actions"><button id="cancelReport" type="button">取消</button><button class="primary">儲存報告</button></div></form></dialog><dialog id="reportViewDialog"><div class="dialog-head"><h2>分析報告</h2><button id="closeReportView" type="button">關閉</button></div><div id="reportContent" style="white-space:pre-wrap;line-height:1.7;text-align:left"></div></dialog>
+<script src="./cross-grid-core.js?v=20260907f"></script>
+<script src="./cross-grid-history.js?v=20260907f"></script>
+<script src="./cross-grid-app-loader.js?v=20260907f"></script>
+</body></html>
