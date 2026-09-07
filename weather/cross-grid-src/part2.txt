@@ -1,59 +1,5 @@
-remove,#grid .color,#grid th select,#grid th>.kind,dialog:not(#reportViewDialog){display:none!important}
- #grid .mobile-value{display:block;font-size:1.25rem;font-weight:800;color:#000;line-height:1.4}
- #grid th .sub{margin:4px 0;font-size:1.125rem}
- .report-bar{margin:0 0 10px;min-height:0}
- .report-bar:not(:has(#reportLink:not([hidden]))){display:none}
- #reportLink{align-items:center;font-size:1.25rem;min-height:48px;padding:8px 10px}
- .scroll{max-height:none;overflow:visible}
-}
-
+readonlyView.share-error{display:block!important;margin:24px 0;padding:18px;border:1px solid #fca5a5;border-radius:10px;background:#fff1f2}
 .weather[hidden]{display:none!important}td.cell-hidden{background:#fff!important}
-
-/* 唯讀分享：保留原頁面版型，只移除編輯功能。 */
-#readonlyView{display:none!important}
-#readonlyView.share-error{display:block!important;margin:24px 0;padding:18px;border:1px solid #fca5a5;border-radius:10px;background:#fff1f2}
-html[data-readonly=true] .scroll,html[data-readonly=true] #grid{display:block!important}
-html[data-readonly=true] #grid{display:table!important}
-
-html[data-readonly=true] #new,
-html[data-readonly=true] #rename,
-html[data-readonly=true] #refresh,
-html[data-readonly=true] #share,
-html[data-readonly=true] #export,
-html[data-readonly=true] #import,
-html[data-readonly=true] #editReport,
-html[data-readonly=true] #addCol,
-html[data-readonly=true] #addRow,
-html[data-readonly=true] #print,
-html[data-readonly=true] .remove,
-html[data-readonly=true] .color,
-html[data-readonly=true] .owner-storage{display:none!important}
-html[data-readonly=true] .toolbar{display:block;margin:16px 0 10px}
-html[data-readonly=true] .toolbar .project{display:block;max-width:520px}
-html[data-readonly=true] .toolbar .project select{appearance:none;background:transparent;border-color:transparent;padding-left:0;pointer-events:none;font-size:1.25rem;font-weight:800}
-html[data-readonly=true] .table-tools>div{display:none!important}
-html[data-readonly=true] .table-tools{display:flex!important;margin-top:8px}
-html[data-readonly=true] .report-bar{display:flex!important;margin-top:10px}
-html[data-readonly=true] #reportLink:not([hidden]){display:inline-flex!important;align-items:center;color:#1e40af;font-weight:700}
-html[data-readonly=true] #placeDialog,
-html[data-readonly=true] #dateDialog,
-html[data-readonly=true] #nameDialog,
-html[data-readonly=true] #reportDialog{display:none!important}
-html[data-readonly=true] #grid select{display:none!important}
-html[data-readonly=true] #grid .mobile-value{display:block!important}
-html[data-readonly=true] #grid th>.kind{display:none!important}
-html[data-readonly=true] #readonlyNotice{display:none!important}
-@media(max-width:760px){
- html[data-readonly=true] main>header{display:flex!important}
- html[data-readonly=true] main>.toolbar{display:block!important}
- html[data-readonly=true] main>.table-tools{display:flex!important}
- html[data-readonly=true] main>#status,
- html[data-readonly=true] main>.legend,
- html[data-readonly=true] main>.note{display:block!important}
- html[data-readonly=true] .report-bar{display:flex!important}
- html[data-readonly=true] #reportLink:not([hidden]){display:inline-flex!important}
- html[data-readonly=true] .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
-}
 </style></head><body><main>
 <section id="readonlyView" aria-label="唯讀分享專案"><h1 id="readonlyTitle"></h1><section id="readonlyReport" hidden><h2>分析報告</h2><div id="readonlyReportText"></div></section></section>
 <header><h1>專案天氣對照表</h1><label>文字大小<select id="size"><option value="large">大字</option><option value="standard">標準</option></select></label></header>
@@ -67,4 +13,19 @@ html[data-readonly=true] #readonlyNotice{display:none!important}
 <dialog id="placeDialog"><form method="dialog" class="dialog-head"><h2>搜尋地點</h2><button>關閉</button></form><form id="search"><label for="query">城市或地區名稱</label><input id="query" type="search" placeholder="例如：東京、Paris" required><button class="primary">搜尋</button></form><p id="searchStatus" role="status"></p><div id="searchResults"></div></dialog>
 <dialog id="dateDialog"><form id="dateForm"><h2>選擇日期</h2><label for="date">日期</label><input id="date" type="date" min="1940-01-01" required><div class="actions"><button type="button" id="cancelDate">取消</button><button class="primary">套用日期</button></div></form></dialog>
 <dialog id="nameDialog"><form id="nameForm"><h2 id="nameTitle">建立專案</h2><label for="name">專案名稱</label><input id="name" maxlength="60" required><div class="actions"><button type="button" id="cancelName">取消</button><button class="primary">儲存</button></div></form></dialog>
-<dialog id="reportDialog"><form id="reportForm"><h2>分析報告</h2><label for="reportText">貼上分析報告文字</label><textarea id="reportText" rows="16" placeholder="請在此貼上分析報告內容…" style="width:100%;font:inherit;line-height:1.6;border:1px solid #7b8796;border-radius:8px;padding:12px;resize:vertical"></textarea><p class="note">內容會隨此專案儲存在瀏覽器中；清空內容可移除報告。</p><div class="actions"><button id="cancelReport" type="button">取消</button><button class="primary">儲存報告</button></div></form></dialog><dialog id="reportViewDialog"><div class="dialog-head"><h2>分析報告</h2><button id="closeReportView" type=
+<dialog id="reportDialog"><form id="reportForm"><h2>分析報告</h2><label for="reportText">貼上分析報告文字</label><textarea id="reportText" rows="16" placeholder="請在此貼上分析報告內容…" style="width:100%;font:inherit;line-height:1.6;border:1px solid #7b8796;border-radius:8px;padding:12px;resize:vertical"></textarea><p class="note">內容會隨此專案儲存在瀏覽器中；清空內容可移除報告。</p><div class="actions"><button id="cancelReport" type="button">取消</button><button class="primary">儲存報告</button></div></form></dialog><dialog id="reportViewDialog"><div class="dialog-head"><h2>分析報告</h2><button id="closeReportView" type="button">關閉</button></div><div id="reportContent" style="white-space:pre-wrap;line-height:1.7;text-align:left"></div></dialog><script>(function(root){
+  function dates(start,end){const list=[];let d=new Date(start+'T00:00:00Z'),last=new Date(end+'T00:00:00Z');if(!Number.isFinite(+d)||!Number.isFinite(+last)||last<d)return list;for(;d<=last&&list.length<366;d.setUTCDate(d.getUTCDate()+1))list.push(d.toISOString().slice(0,10));return list}
+  function key(e){return Number.isFinite(e.lat)&&Number.isFinite(e.lon)?`${e.lat.toFixed(3)},${e.lon.toFixed(3)}`:String(e.city||e.label).trim()}
+  function model(project,team=''){
+    const entries=[];for(const [t,items] of Object.entries(project?.teams||{}))if(!team||t===team)for(const e of items)entries.push({...e,team:t});
+    if(!team)for(const e of project?.referenceLocations||[])entries.push({...e,team:'參考'});
+    const cities=new Map(),days=new Set();for(const e of entries){const id=key(e);if(!cities.has(id))cities.set(id,{...e,key:id,assignments:new Map()});const city=cities.get(id);for(const d of dates(e.start,e.end)){days.add(d);if(!city.assignments.has(d))city.assignments.set(d,[]);if(!city.assignments.get(d).includes(e.team))city.assignments.get(d).push(e.team)}}
+    const arr=[...days].sort();return{cities:[...cities.values()],dates:arr.length?dates(arr[0],arr[arr.length-1]):[]};
+  }
+  function shift(d,n){const x=new Date(d+'T00:00:00Z');x.setUTCDate(x.getUTCDate()+n);return x.toISOString().slice(0,10)}
+  function ranges(start,end,today){const cut=shift(today,-7),far=shift(today,15),out=[];if(start<=cut)out.push({kind:'history',start,end:end<cut?end:cut});const begin=start>shift(cut,1)?start:shift(cut,1),finish=end<far?end:far;if(begin<=finish)out.push({kind:'forecast',start:begin,end:finish});return out}
+  const api={dates,key,model,shift,ranges};if(typeof module!=='undefined')module.exports=api;else root.MatrixCore=api;
+})(typeof window!=='undefined'?window:globalThis);
+</script><script>(function(root){
+ function validDate(year,monthDay){const s=year+'-'+monthDay,d=new Date(s+'T00:00:00Z');return Number.isFinite(+d)&&d.toISOString().slice(0,10)===s?s:null}
+ function plan(targets,today){const cutoff=MatrixCore.shift(today,-7),all=new Set(),items=new Map();for(const target of targets){const year=Number(target.slice(0
