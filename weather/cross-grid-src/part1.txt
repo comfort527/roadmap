@@ -6,11 +6,14 @@
 
 .report-bar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:16px}.report-bar a{color:#1e40af;font-weight:700;padding:10px 12px;min-height:48px}.report-bar a[hidden]{display:none}#reportError{color:#991b1b}@media print{.report-bar button{display:none}.report-bar a:after{content:" (" attr(href) ")";font-size:10pt}}
 
-html[data-readonly=true] #new,html[data-readonly=true] #rename,html[data-readonly=true] #export,html[data-readonly=true] #import,html[data-readonly=true] #share,html[data-readonly=true] #editReport,html[data-readonly=true] #addCol,html[data-readonly=true] #addRow,html[data-readonly=true] .remove,html[data-readonly=true] .color,html[data-readonly=true] .owner-storage{display:none!important}html[data-readonly=true] th select{appearance:none;border:0;background:transparent;color:#111;opacity:1;-webkit-text-fill-color:#111}#readonlyNotice{color:#334155;background:#eff6ff;padding:12px;border-radius:8px}.reference-label{font-size:.95rem;line-height:1.35}
-/* The document scrolls naturally; the table has no internal scroll viewport. */
-.scroll{overflow:visible;max-height:none}thead th,thead th:first-child,tbody th{position:static}html[data-readonly=true] .toolbar .project select{appearance:none;background:transparent;border-color:transparent}html[data-readonly=true] .instruction{display:none}
-
-.mobile-value{display:none}
-@media (max-width:760px), (max-width:1100px) and (pointer:coarse){
- main{padding:10px 8px}
- main>header,main>.toolbar,main>.instruction,main>.table-tools,main>#readonlyNotice,main>#status,main>.legend,main>.note,#editReport,#grid .
+/* 分享模式：沿用原頁面，只隱藏專案操作與色彩選項。 */
+html[data-readonly=true] .toolbar button,
+html[data-readonly=true] #file,
+html[data-readonly=true] .color,
+html[data-readonly=true] .remove,
+html[data-readonly=true] #editReport{display:none!important}
+html[data-readonly=true] .toolbar .project{display:block;flex:1;min-width:220px}
+html[data-readonly=true] .toolbar .project select{appearance:none;-webkit-appearance:none;background:transparent;border-color:transparent;pointer-events:none;opacity:1;color:#111;-webkit-text-fill-color:#111;font-weight:800}
+html[data-readonly=true] th select{pointer-events:none;opacity:1;color:#111;-webkit-text-fill-color:#111}
+#readonlyView{display:none!important}
+#
