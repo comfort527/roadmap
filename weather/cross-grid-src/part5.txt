@@ -1,21 +1,4 @@
-timer=setTimeout(()=>ctl.abort(),timeoutMs),abort=()=>ctl.abort();
-    if(signal){if(signal.aborted)ctl.abort();else signal.addEventListener('abort',abort,{once:true})}
-    try{
-      const res=await fetch(url,{signal:ctl.signal});
-      if(!res.ok){let reason='';try{const body=await res.json();reason=body?.reason||body?.error||''}catch{}throw new Error(reason?`服務暫時無法回應（${res.status}：${reason}）`:`服務暫時無法回應（${res.status}）`)}
-      return res.json();
-    }finally{clearTimeout(timer);if(signal)signal.removeEventListener('abort',abort)}
-  }
-  async function archive(l,start,end,daily,signal){
-    const base={latitude:l.lat,longitude:l.lon,start_date:start,end_date:end,timezone:'auto',daily};
-    let lastError;
-    for(const extra of [{},{models:'era5'}]){
-      try{return await json('https://archive-api.open-meteo.com/v1/archive?'+new URLSearchParams({...base,...extra}),signal,45000)}catch(e){if(signal?.aborted)throw e;lastError=e}
-    }
-    throw lastError||new Error('歷史氣象資料暫時無法取得');
-  }
-  async function historicalForecast(l,start,end,daily,signal){
-    const params=new URLSearchParams({latitude:l.lat,longitude:l.lon,start_date:start,end_date:end,timezone:'auto',daily});
+te:end,timezone:'auto',daily});
     return json('https://historical-forecast-api.open-meteo.com/v1/forecast?'+params,signal,45000);
   }
   async function historicalData(l,start,end,daily,signal){
@@ -67,4 +50,6 @@ timer=setTimeout(()=>ctl.abort(),timeoutMs),abort=()=>ctl.abort();
       if(d.rise||d.set)w.append(el('div',`${sun(d.rise)}／${sun(d.set)}`,'sun'));
     }else if(d&&(Number.isFinite(d.low)||Number.isFinite(d.high))){w.append(el('div',`${round(d.low)}/${round(d.high)}°C`,'temperature'),el('div',d.kind==='history'?`降水：${Number.isFinite(d.amount)?d.amount.toFixed(1)+' mm':'無資料'}`:`降雨：${Number.isFinite(d.rain)?round(d.rain)+'%':'無資料'}`,'rain'),el('div',`昇 ${sun(d.rise)}／落 ${sun(d.set)}`,'sun'));if(d.kind==='history')w.append(el('div','歷史資料','kind'))}
     else w.append(el('div',error||record?.errors?'更新失敗，請重試':'目前無資料','message'))}}
-  async function update(force=false){const seq=++generation;controller?.abort();controller=new AbortController();const signal=controller.signal,p=project(),dates=[...new Set(p.rows.map(r=>r.date))].sort(),places=[...new Set(p.columns.map(c=>c.locationId))].map(loc).filter(Boolean);lastAttempt=Date.now();$('refresh').disabled=true;$('status').textContent='正在查詢各地點與日期的天氣…';let index=0,errors=0;async function worker(){while(index<places.length){const l=places[index++];try{const r=await fetchLocation(l,dates,signal,force);if(seq!==generation)return;paint(l.id,r);if(r.errors)errors++}catch(e){if(seq!==generation)return;errors++;paint(l.id,null,e.message)}}}await Promise.all([worker(),worker()]);if(seq!==generation)return;$('refresh').disabled=false;const stamp=new Intl.DateTimeFormat('zh-TW',{dateStyle:'medium',timeStyle:'short'}).format(new Date());$('status').textContent=errors?`本次查詢：${stamp}。${errors} 個地點未完整更新，請按「更新天氣」重試。`:`更新日期：
+  async function update(force=false){const seq=++generation;controller?.abort();controller=new AbortController();const signal=controller.signal,p=project(),dates=[...new Set(p.rows.map(r=>r.date))].sort(),places=[...new Set(p.columns.map(c=>c.locationId))].map(loc).filter(Boolean);lastAttempt=Date.now();$('refresh').disabled=true;$('status').textContent='正在查詢各地點與日期的天氣…';let index=0,errors=0;async function worker(){while(index<places.length){const l=places[index++];try{const r=await fetchLocation(l,dates,signal,force);if(seq!==generation)return;paint(l.id,r);if(r.errors)errors++}catch(e){if(seq!==generation)return;errors++;paint(l.id,null,e.message)}}}await Promise.all([worker(),worker()]);if(seq!==generation)return;$('refresh').disabled=false;const stamp=new Intl.DateTimeFormat('zh-TW',{dateStyle:'medium',timeStyle:'short'}).format(new Date());$('status').textContent=errors?`本次查詢：${stamp}。${errors} 個地點未完整更新，請按「更新天氣」重試。`:`更新日期：${stamp}。已檢查 ${places.length} 個地點、${dates.length} 個日期。`}
+  $('projects').onchange=()=>{if(readonly)return;state.activeId=$('projects').value;save();render();update()};$('size').onchange=()=>{state.textSize=$('size').value;save();document.documentElement.dataset.size=state.textSize};$('refresh').onclick=()=>update(true);
+  $('addCol').onclick=()=>{if(readonly)return;project().columns.push({id:uid(),locationId:initial[0].id});save();render();update()};$('addRow').onclick=()=>{if(readonly)return;const p=project();p.rows.push({id:uid(),date:core.shift(p.rows.at(-1).date,1)})
