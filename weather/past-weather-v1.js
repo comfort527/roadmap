@@ -10,7 +10,25 @@
   function isoAddDays(iso,days){const d=new Date(`${iso}T12:00:00`);d.setDate(d.getDate()+days);return localISO(d)}
   function minISO(a,b){return a<b?a:b}
   function maxISO(a,b){return a>b?a:b}
-  async function getJson(url){const response=await fetch(url);if(!response.ok){const body=await response.json().catch(()=>({}));throw new Error(body.reason||'天氣服務暫時無法取得資料。')}return response.json()}
+  function sleep(ms){return new Promise(resolve=>setTimeout(resolve,ms))}
+  async function getJson(url,attempts=3){
+    let lastError=null;
+    for(let attempt=1;attempt<=attempts;attempt++){
+      const controller=typeof AbortController!=='undefined'?new AbortController():null;
+      const timer=controller?setTimeout(()=>controller.abort(),15000):null;
+      try{
+        const response=await fetch(url,{cache:'no-store',signal:controller?.signal});
+        if(timer)clearTimeout(timer);
+        if(!response.ok){const body=await response.json().catch(()=>({}));throw new Error(body.reason||`天氣服務回應 ${response.status}`)}
+        return await response.json();
+      }catch(err){
+        if(timer)clearTimeout(timer);
+        lastError=err;
+        if(attempt<attempts)await sleep(450*attempt);
+      }
+    }
+    throw lastError||new Error('天氣服務暫時無法取得資料。');
+  }
   function emptyDaily(){return{time:[],temperature_2m_max:[],temperature_2m_min:[],precipitation_probability_max:[],sunrise:[],sunset:[]}}
   function appendDaily(target,source,archive=false){const times=source?.time||[];for(let i=0;i<times.length;i++){
     target.time.push(times[i]);
@@ -25,7 +43,7 @@
   fetchWeather=async function(loc){
     const requestedStart=startInput.value,requestedEnd=endInput.value;
     const todayISO=localISO(today),forecastEndISO=localISO(maxDate),yesterdayISO=isoAddDays(todayISO,-1);
-    const daily=emptyDaily();let timezone=loc.timezone||'auto',timezone_abbreviation='';
+    const daily=emptyDaily();let timezone=loc.timezone||'auto',timezone_abbreviation='',partial=false;
 
     if(requestedStart<=yesterdayISO){
       const pastEnd=minISO(requestedEnd,yesterdayISO);
@@ -33,13 +51,18 @@
         const archiveEnd=minISO(pastEnd,'2021-12-31');
         if(requestedStart<=archiveEnd){
           const url=`https://archive-api.open-meteo.com/v1/archive?latitude=${encodeURIComponent(loc.latitude)}&longitude=${encodeURIComponent(loc.longitude)}&daily=${ARCHIVE_DAILY}&timezone=auto&start_date=${requestedStart}&end_date=${archiveEnd}`;
-          const data=await getJson(url);timezone=data.timezone||timezone;timezone_abbreviation=data.timezone_abbreviation||timezone_abbreviation;appendDaily(daily,data.daily,true);
+          try{const data=await getJson(url);timezone=data.timezone||timezone;timezone_abbreviation=data.timezone_abbreviation||timezone_abbreviation;appendDaily(daily,data.daily,true)}catch(err){partial=true}
         }
       }
       const hfStart=maxISO(requestedStart,HISTORICAL_FORECAST_START);
       if(hfStart<=pastEnd){
-        const url=`https://historical-forecast-api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(loc.latitude)}&longitude=${encodeURIComponent(loc.longitude)}&daily=${FORECAST_DAILY}&timezone=auto&start_date=${hfStart}&end_date=${pastEnd}`;
-        const data=await getJson(url);timezone=data.timezone||timezone;timezone_abbreviation=data.timezone_abbreviation||timezone_abbreviation;appendDaily(daily,data.daily,false);
+        const hfUrl=`https://historical-forecast-api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(loc.latitude)}&longitude=${encodeURIComponent(loc.longitude)}&daily=${FORECAST_DAILY}&timezone=auto&start_date=${hfStart}&end_date=${pastEnd}`;
+        try{
+          const data=await getJson(hfUrl);timezone=data.timezone||timezone;timezone_abbreviation=data.timezone_abbreviation||timezone_abbreviation;appendDaily(daily,data.daily,false);
+        }catch(hfErr){
+          const fallbackUrl=`https://archive-api.open-meteo.com/v1/archive?latitude=${encodeURIComponent(loc.latitude)}&longitude=${encodeURIComponent(loc.longitude)}&daily=${ARCHIVE_DAILY}&timezone=auto&start_date=${hfStart}&end_date=${pastEnd}`;
+          try{const data=await getJson(fallbackUrl,2);timezone=data.timezone||timezone;timezone_abbreviation=data.timezone_abbreviation||timezone_abbreviation;appendDaily(daily,data.daily,true);partial=true}catch(archiveErr){partial=true}
+        }
       }
     }
 
@@ -47,10 +70,12 @@
       const forecastStart=maxISO(requestedStart,todayISO),forecastEnd=minISO(requestedEnd,forecastEndISO);
       if(forecastStart<=forecastEnd){
         const url=`https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(loc.latitude)}&longitude=${encodeURIComponent(loc.longitude)}&daily=${FORECAST_DAILY}&timezone=auto&start_date=${forecastStart}&end_date=${forecastEnd}`;
-        const data=await getJson(url);timezone=data.timezone||timezone;timezone_abbreviation=data.timezone_abbreviation||timezone_abbreviation;appendDaily(daily,data.daily,false);
+        try{const data=await getJson(url);timezone=data.timezone||timezone;timezone_abbreviation=data.timezone_abbreviation||timezone_abbreviation;appendDaily(daily,data.daily,false)}catch(err){partial=true}
       }
     }
 
-    return{daily:sortDaily(daily),timezone,timezone_abbreviation,_requested:{start:requestedStart,end:requestedEnd},_available:{start:'1940-01-01',end:forecastEndISO},_partial:requestedStart<'1940-01-01'||requestedEnd>forecastEndISO};
+    const sorted=sortDaily(daily);
+    if(!sorted.time.length)throw new Error('天氣資料暫時無法取得，請稍後重新查詢。');
+    return{daily:sorted,timezone,timezone_abbreviation,_requested:{start:requestedStart,end:requestedEnd},_available:{start:'1940-01-01',end:forecastEndISO},_partial:partial||requestedStart<'1940-01-01'||requestedEnd>forecastEndISO};
   };
 })();
