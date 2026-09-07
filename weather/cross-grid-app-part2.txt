@@ -1,0 +1,37 @@
+rojects.forEach(ensureTaipei);
+  function render(){const p=project();ensureTaipei(p);save();renderReport();$('projects').replaceChildren(...state.projects.map(p=>opt(p.id,p.name)));$('projects').value=p.id;$('title').textContent=p.name;document.documentElement.dataset.size=state.textSize||'large';$('size').value=state.textSize||'large';
+    const table=$('grid');table.style.minWidth=(160+p.columns.length*195)+'px';const hr=el('tr'),corner=el('th');corner.scope='col';corner.append(el('div','地點 →'),el('div','日期 ↓'));hr.append(corner);
+    p.columns.forEach((col,colIndex)=>{const th=el('th');th.scope='col';const s=el('select');s.setAttribute('aria-label',colIndex===0?'第一欄固定為臺北':'選擇此欄地點');s.disabled=readonly||colIndex===0;s.append(...state.locations.map(l=>opt(l.id,l.name)),opt('__search','搜尋其他地點…'));s.value=col.locationId;s.onchange=()=>{if(readonly||colIndex===0)return;if(s.value==='__search'){s.value=col.locationId;placeTarget={projectId:p.id,columnId:col.id};$('searchResults').replaceChildren();$('searchStatus').textContent='';$('placeDialog').showModal();$('query').focus()}else{col.locationId=s.value;save();render();update()}};th.append(el('span',loc(col.locationId)?.name||'','mobile-value'),s,el('span',loc(col.locationId)?.english||'','sub'));const remove=el('button','移除此欄','remove');remove.type='button';remove.disabled=p.columns.length<=1;remove.setAttribute('aria-label',`移除${loc(col.locationId)?.name||''}地點欄`);remove.onclick=()=>{if(readonly||colIndex===0)return;p.columns=p.columns.filter(c=>c!==col);Object.keys(p.colors).filter(k=>k.endsWith('|'+col.id)).forEach(k=>delete p.colors[k]);save();render();update()};if(colIndex!==0)th.append(remove);else th.append(el('span','固定地點','kind'));hr.append(th)});table.tHead.replaceChildren(hr);table.tBodies[0].replaceChildren();
+    p.rows.forEach((row,rowIndex)=>{const tr=el('tr'),th=el('th');th.scope='row';const s=el('select');s.setAttribute('aria-label',rowIndex===0?'選擇首列日期，後續自動順延':'依首列日期自動順延');s.disabled=readonly||rowIndex!==0;const ds=new Set([row.date]);for(let i=-7;i<=60;i++)ds.add(core.shift(today(),i));[...ds].sort().forEach(d=>s.append(opt(d,`${d.slice(0,4)}/${short(d)}`)));s.append(opt('__custom','其他日期…'));s.value=row.date;s.onchange=()=>{if(readonly)return;if(s.value==='__custom'){s.value=row.date;dateTarget={projectId:p.id,rowId:row.id};$('date').value=row.date;$('dateDialog').showModal()}else{sequence(p,s.value);save();render();update()}};th.append(el('span',`${row.date.slice(0,4)}/${short(row.date)}`,'mobile-value'),s,el('span',`星期${'日一二三四五六'[new Date(row.date+'T12:00:00Z').getUTCDay()]}`,'sub'));const remove=el('button','移除此列','remove');remove.type='button';remove.disabled=p.rows.length<=1;remove.setAttribute('aria-label',`移除${row.date}日期列`);remove.onclick=()=>{if(readonly)return;p.rows=p.rows.filter(r=>r!==row);sequence(p);Object.keys(p.colors).filter(k=>k.startsWith(row.id+'|')).forEach(k=>delete p.colors[k]);save();render();update()};th.append(remove);tr.append(th);
+      p.columns.forEach(col=>{const key=cellKey(row,col),mode=['blue','orange'].includes(p.colors[key])?p.colors[key]:'hidden',td=el('td',undefined,mode==='hidden'?'cell-hidden':mode);td.dataset.row=row.id;td.dataset.col=col.id;const weather=el('div',undefined,'weather');weather.hidden=mode==='hidden';weather.append(el('div','讀取中…','message'));const color=el('select',undefined,'color');color.setAttribute('aria-label',`${loc(col.locationId)?.name} ${row.date} 顯示方式`);color.append(opt('blue','藍色：先遣'),opt('orange','橘色：本隊'),opt('hidden','不顯示'));color.value=mode;color.disabled=readonly;color.onchange=()=>{if(readonly)return;p.colors[key]=color.value;weather.hidden=color.value==='hidden';td.className=color.value==='hidden'?'cell-hidden':color.value;save()};td.append(weather,color);tr.append(td)});table.tBodies[0].append(tr)});
+  }
+  async function json(url,signal,timeoutMs=25000){
+    const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),timeoutMs),abort=()=>ctl.abort();
+    if(signal){if(signal.aborted)ctl.abort();else signal.addEventListener('abort',abort,{once:true})}
+    try{
+      const res=await fetch(url,{signal:ctl.signal});
+      if(!res.ok){let reason='';try{const body=await res.json();reason=body?.reason||body?.error||''}catch{}throw new Error(reason?`服務暫時無法回應（${res.status}：${reason}）`:`服務暫時無法回應（${res.status}）`)}
+      return res.json();
+    }finally{clearTimeout(timer);if(signal)signal.removeEventListener('abort',abort)}
+  }
+  async function archive(l,start,end,daily,signal){
+    const base={latitude:l.lat,longitude:l.lon,start_date:start,end_date:end,timezone:'auto',daily};
+    let lastError;
+    for(const extra of [{},{models:'era5'}]){
+      try{return await json('https://archive-api.open-meteo.com/v1/archive?'+new URLSearchParams({...base,...extra}),signal,45000)}catch(e){if(signal?.aborted)throw e;lastError=e}
+    }
+    throw lastError||new Error('歷史氣象資料暫時無法取得');
+  }
+  async function historicalForecast(l,start,end,daily,signal){
+    const params=new URLSearchParams({latitude:l.lat,longitude:l.lon,start_date:start,end_date:end,timezone:'auto',daily});
+    return json('https://historical-forecast-api.open-meteo.com/v1/forecast?'+params,signal,45000);
+  }
+  async function historicalData(l,start,end,daily,signal){
+    let firstError;
+    if(start>='2021-01-01'){
+      try{return await historicalForecast(l,start,end,daily,signal)}catch(e){if(signal?.aborted)throw e;firstError=e}
+    }
+    try{return await archive(l,start,end,daily,signal)}catch(e){if(signal?.aborted)throw e;throw firstError||e}
+  }
+  async function fetchReference(l,targets,signal,force){
+    const plan=HistoryReference.plan(targets,today());if(!plan.dates.length)return new Map([...plan.items].
