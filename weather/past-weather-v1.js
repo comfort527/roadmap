@@ -26,7 +26,10 @@
     const warnings=[];const signal=query.signal;
     const getJson=(url,attempts=2)=>WeatherRequests.json(url,{signal,attempts});
     const now=new Date();const horizon=new Date(now);horizon.setDate(horizon.getDate()+15);
-    const todayISO=localISO(now),forecastEndISO=localISO(horizon),yesterdayISO=isoAddDays(todayISO,-1);
+    const todayISO=localISO(now),forecastEndISO=localISO(horizon);
+    // Keep recent days on the live endpoint so crossing midnight does not switch
+    // yesterday to a historical dataset that may still be catching up.
+    const recentStartISO=isoAddDays(todayISO,-6),archiveEndISO=isoAddDays(recentStartISO,-1);
     const daily=emptyDaily();let timezone=loc.timezone||'auto',timezone_abbreviation='',partial=false;
     let requestedSegments=0,successfulSegments=0;
     function record(data,archive=false){
@@ -36,8 +39,8 @@
     }
     function failed(err,label){WeatherRequests.check(signal);partial=true;warnings.push(`${label}：${err.message||'無法取得資料'}`)}
 
-    if(requestedStart<=yesterdayISO){
-      const pastEnd=minISO(requestedEnd,yesterdayISO);
+    if(requestedStart<=archiveEndISO){
+      const pastEnd=minISO(requestedEnd,archiveEndISO);
       if(requestedStart<'2022-01-01'){
         const archiveEnd=minISO(pastEnd,'2021-12-31');
         if(requestedStart<=archiveEnd){
@@ -58,8 +61,8 @@
       }
     }
 
-    if(requestedEnd>=todayISO&&requestedStart<=forecastEndISO){
-      const forecastStart=maxISO(requestedStart,todayISO),forecastEnd=minISO(requestedEnd,forecastEndISO);
+    if(requestedEnd>=recentStartISO&&requestedStart<=forecastEndISO){
+      const forecastStart=maxISO(requestedStart,recentStartISO),forecastEnd=minISO(requestedEnd,forecastEndISO);
       if(forecastStart<=forecastEnd){
         const url=`https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(loc.latitude)}&longitude=${encodeURIComponent(loc.longitude)}&daily=${FORECAST_DAILY}&timezone=auto&start_date=${forecastStart}&end_date=${forecastEnd}`;
         requestedSegments++;try{record(await getJson(url))}catch(err){failed(err,'天氣預報載入失敗')}
